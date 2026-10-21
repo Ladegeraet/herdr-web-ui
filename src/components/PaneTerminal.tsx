@@ -1318,7 +1318,7 @@ export function PaneTerminal({
       {/* the composer belongs to the chat lens: in terminal mode the grid itself is
           the input surface (key bar included), so a second box would only duplicate it */}
       {presented && paneId !== null && chatMounted && !secretActive && !observing && !ended && (
-        <ChatAnnotationsBar key={`annotations-${paneId}`} storeKey={paneId} sendDisabled={!connected || held} onInsert={insertAnnotations} onSend={sendAnnotations} />
+        <ChatAnnotationsBar key={`annotations-${paneId}`} storeKey={paneStorageId(machineId, paneId)} sendDisabled={!connected || held} onInsert={insertAnnotations} onSend={sendAnnotations} />
       )}
       {presented && paneId !== null && chatMounted && !secretActive && !observing && !ended && (
         <Composer

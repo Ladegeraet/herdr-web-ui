@@ -2347,7 +2347,7 @@ export const ChatView = memo(function ChatView({ paneId, presentationKey, finish
       setPromptPollKey((key) => key + 1);
       onPendingAnswerDone?.(paneId, prompt.id);
     }} />, promptDock)}
-  <ChatAnnotator root={annotateRoot} storeKey={paneId} />
+  <ChatAnnotator root={annotateRoot} storeKey={paneStorageId(machineId, paneId)} />
   {viewer !== null && <ImageLightbox images={viewer.images} index={viewer.index} onClose={closeViewer} />}
   </ToolPathRootContext.Provider></ImageViewerContext.Provider></ChatHistoryContext.Provider></ChatPaneContext.Provider></ChatMarkdownImages>;
 });
