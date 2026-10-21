@@ -178,9 +178,14 @@ function AnnotationEditor({ selected, onSave, onClose }: { selected: Selected; o
     const node = surface.current;
     if (modal || node === null) return;
     setPlace(popoverPlace(selected.box, viewport(), { width: node.offsetWidth, height: node.offsetHeight }));
-    // the popover is not modal and traps nothing: the field just takes the focus
-    field.current?.focus({ preventScroll: true });
   }, [modal, selected, surface]);
+  // the popover is not modal and traps nothing: the field takes the focus once it is placed (a
+  // field inside the hidden, unplaced popover would refuse it)
+  const placed = place !== null;
+  useEffect(() => { if (!modal && placed) field.current?.focus({ preventScroll: true }); }, [modal, placed]);
+  // read by the outside press: a comment being written is never thrown away by a stray click
+  const written = useRef(false);
+  written.current = comment.trim().length > 0;
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
@@ -189,9 +194,10 @@ function AnnotationEditor({ selected, onSave, onClose }: { selected: Selected; o
       event.preventDefault();
       onClose();
     };
-    // the popover is not modal: a press outside it closes it, as a menu's does
+    // the popover is not modal: a press outside it closes it, as a menu's does, unless a comment is
+    // written in it; Escape and Cancel still discard one
     const onPointer = (event: PointerEvent): void => {
-      if (!modal && !surface.current?.contains(event.target as Node)) onClose();
+      if (!modal && !written.current && !surface.current?.contains(event.target as Node)) onClose();
     };
     window.addEventListener("keydown", onKey, true);
     window.addEventListener("pointerdown", onPointer, true);
@@ -251,12 +257,28 @@ export function ChatAnnotationsBar({ storeKey, sendDisabled, onInsert, onSend }:
   const t = useT();
   const annotations = useChatAnnotations(storeKey);
   const [open, setOpen] = useState(false);
+  const coarse = useMediaQuery("(pointer: coarse)");
   const count = annotations.length;
-  // the last one removed or sent takes the dialog with it: the next first one does not reopen it
-  useEffect(() => { if (count === 0) setOpen(false); }, [count]);
+  // the composer's message box, kept from while the chip was there: the chip leaves with the last one
+  const messageBox = useRef<HTMLTextAreaElement | null>(null);
+  const held = useCallback((node: HTMLDivElement | null) => {
+    if (node) messageBox.current = node.closest(".composer")?.querySelector<HTMLTextAreaElement>("textarea") ?? null;
+  }, []);
+  const before = useRef(count);
+  // the last one removed, inserted, sent or cleared takes the dialog and the chip with it (the next
+  // first one does not reopen it): the focus they held goes on to the message box, but never on
+  // touch, where that raises the keyboard
+  useEffect(() => {
+    const emptied = before.current > 0 && count === 0;
+    before.current = count;
+    if (!emptied) return;
+    setOpen(false);
+    const focused = document.activeElement;
+    if (!coarse && (focused === null || focused === document.body)) messageBox.current?.focus({ preventScroll: true });
+  }, [coarse, count]);
   if (count === 0) return null;
   const label = count === 1 ? t("1 annotation") : t("{n} annotations", { n: count });
-  return <div className="chat-annotations-bar">
+  return <div className="chat-annotations-bar" ref={held}>
     <button type="button" className="chat-annotations-chip" aria-haspopup="dialog" onClick={() => { setOpen(true); }}>
       <MessageSquareText aria-hidden="true" />{label}
     </button>
@@ -272,6 +294,8 @@ function AnnotationsDialog({ storeKey, sendDisabled, onInsert, onSend, onClose }
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
+  // the place of the row just removed: the focus goes on to the Remove now there, or the one before
+  const [removedAt, setRemovedAt] = useState<number | null>(null);
   const mounted = useRef(true);
   // set again on mount: StrictMode runs the cleanup once in development
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -290,6 +314,13 @@ function AnnotationsDialog({ storeKey, sendDisabled, onInsert, onSend, onClose }
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, [confirming, onClose, sending]);
+
+  useEffect(() => {
+    if (removedAt === null) return;
+    setRemovedAt(null);
+    const buttons = surface.current?.querySelectorAll<HTMLElement>(".chat-annotations-remove");
+    (buttons?.[removedAt] ?? buttons?.[removedAt - 1] ?? surface.current)?.focus({ preventScroll: true });
+  }, [annotations, removedAt, surface]);
 
   const markdown = formatAnnotationsMarkdown(annotations);
   const insert = (): void => {
@@ -321,14 +352,14 @@ function AnnotationsDialog({ storeKey, sendDisabled, onInsert, onSend, onClose }
         </header>
         <div className="modal-body">
           <ol className="chat-annotations-list">
-            {annotations.map((annotation) => <li key={annotation.id} className="chat-annotations-item">
+            {annotations.map((annotation, index) => <li key={annotation.id} className="chat-annotations-item">
               <div className="chat-annotations-item-head">
                 <span className="chat-annotations-item-source">
                   {t(annotation.source === "agent" ? "On agent message" : "On your message")}
                   {annotation.context && <> · {annotation.context}</>}
                 </span>
-                <button type="button" className="icon-button" aria-label={t("Remove annotation")} title={t("Remove annotation")} disabled={sending}
-                  onClick={() => { removeAnnotation(storeKey, annotation.id); }}><Trash2 aria-hidden="true" /></button>
+                <button type="button" className="icon-button chat-annotations-remove" aria-label={t("Remove annotation {n}", { n: index + 1 })} title={t("Remove annotation {n}", { n: index + 1 })} disabled={sending}
+                  onClick={() => { removeAnnotation(storeKey, annotation.id); setRemovedAt(index); }}><Trash2 aria-hidden="true" /></button>
               </div>
               <blockquote className="chat-annotate-quote">{annotation.quote}</blockquote>
               <p className="chat-annotations-item-comment">{annotation.comment}</p>
