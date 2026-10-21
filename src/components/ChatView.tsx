@@ -19,6 +19,7 @@ import { PromptCard } from "./PromptCard.tsx";
 import { RenderBoundary } from "./RenderBoundary.tsx";
 import { loadChatTimeline, loadedChatTimeline, useChatTimeline } from "./chatTimelineLoader.ts";
 import { ChatMinimap } from "./ChatMinimap.tsx";
+import { ChatAnnotator } from "./ChatAnnotations.tsx";
 import { minimapTurns } from "../lib/chatMinimap.ts";
 import type { LegendListRef } from "@legendapp/list/react";
 import { continuesHistory, createChatRowSlots, growChatRowSlots, prependChatRowSlots } from "../lib/chatRows.ts";
@@ -1322,7 +1323,7 @@ export const Turn = memo(function Turn({ paneId, turn, rowKey, live, waiting, sh
       <div className="chat-turn-meta">{time}<CopyButton text={text} label={t("Copy message")} onResult={copied} /></div>
       {copyError}
     </section>;
-    return <article className="chat-turn chat-turn-user">
+    return <article className="chat-turn chat-turn-user" data-annotate="user" data-annotate-ts={turn.ts ?? undefined}>
       <UserImages paneId={paneId} parts={turn.parts} text={text} />
       {/* one row: with a mouse the time and copy sit beside the bubble, on touch under it */}
       <div className="chat-user-row">
@@ -1365,7 +1366,7 @@ export const Turn = memo(function Turn({ paneId, turn, rowKey, live, waiting, sh
       defaultOpen={workBlockStartsOpen({ live: live && isHead, waiting: waiting && isHead, last: run !== null && run === segments.at(-1) }, turn.parts, foldWork)}
       showThinking={showThinking} expandThinking={expandThinking} pendingHead={isHead && answer.length === 0} />;
   };
-  return <article className="chat-turn chat-turn-agent">
+  return <article className="chat-turn chat-turn-agent" data-annotate="agent" data-annotate-ts={turn.ts ?? undefined}>
     <SkillActivityList parts={turn.parts} />
     {goal !== null && <GoalActivity goal={goal} />}
     {/* the pending head stands only above no answer: one above words would leave a gap when the turn ends */}
@@ -1643,6 +1644,8 @@ export const ChatView = memo(function ChatView({ paneId, presentationKey, finish
   // a local send accepted before this chat mounted (another pane, another lens) is not followed here
   const seenLocalSend = useRef(localSend?.key ?? 0);
   const scroller = useRef<HTMLDivElement>(null);
+  // the chat a selection must lie in for Comment (ChatAnnotations.tsx): state, so the watcher starts once it mounts
+  const [annotateRoot, setAnnotateRoot] = useState<HTMLDivElement | null>(null);
   const timeline = useRef<LegendListRef>(null);
   const ChatTimeline = useChatTimeline();
   const stickToBottom = useRef(true);
@@ -2940,7 +2943,7 @@ export const ChatView = memo(function ChatView({ paneId, presentationKey, finish
       && endPresentation?.state === state && endPresentation.key === presentationKey
       && (agentStatus !== "done" || conversationFinishPresented({ source: state.conversationSource, turns: state.turns }))
       && readPresentation === presentationKey && (state.source === "conversation" ? ChatTimeline !== null : agent === null) ? presentationKey : undefined}>
-    <div className="chat-frame-body">
+    <div className="chat-frame-body" ref={setAnnotateRoot}>
     {state.source === "conversation" ? ChatTimeline === null
       // its chunk is still loading: no turn is read until it arrives, so this is the loading state
       ? <div className="chat-view chat-view-virtual" role="log" aria-live="polite" aria-label={logLabel}>
@@ -2997,6 +3000,7 @@ export const ChatView = memo(function ChatView({ paneId, presentationKey, finish
       setPromptPollKey((key) => key + 1);
       onPendingAnswerDone?.(paneId, prompt.id);
     }} />, promptDock)}
+  <ChatAnnotator root={annotateRoot} storeKey={paneId} />
   {viewer !== null && <ImageLightbox images={viewer.images} index={viewer.index} onClose={closeViewer} />}
   {searching && <ConversationSearch paneId={paneId} agent={agent} historyId={historyId} title={title} onClose={closeSearch} onPick={revealTurn} />}
   </ToolPathRootContext.Provider></ImageViewerContext.Provider></ChatHistoryContext.Provider></ChatPaneContext.Provider></FileNameLookupContext.Provider></ChatMarkdownImages>;
