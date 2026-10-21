@@ -317,6 +317,8 @@ const BASE: Record<string, string> = {
   "Insert into message": "メッセージに挿入",
   "Too long to send as one message": "1 つのメッセージとして送るには長すぎます",
   "Not sent: a message is still on its way.": "未送信: 前のメッセージをまだ送信中です。",
+  "Not sent: the agent is asking a question. Answer it first.": "未送信: エージェントが質問しています。先に回答してください。",
+  "Use Insert into message to send them from the message box instead.": "代わりに「メッセージに挿入」を使い、入力欄から送信してください。",
   // t3code ports (d)
   "Change PC": "PCを切り替え",
   "Selected": "選択中",

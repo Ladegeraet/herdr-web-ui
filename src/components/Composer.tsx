@@ -101,6 +101,9 @@ export interface ComposerProps {
   greeting?: ReactNode;
   /** the pane's notices over the input card (PaneTerminal builds them): rows of its own, above the replies */
   notices?: ReactNode;
+  /** the chat's collected annotations (ChatAnnotations.tsx): a chip over the card that, unlike a
+   * notice, leaves a phone's card floating over the transcript */
+  annotations?: ReactNode;
   /** the connection's confirmed role; PaneTerminal mounts no composer for observers */
   role?: ClientRole;
   /** a terminal command's peek has the pane: the composer stays, with its draft, but takes no input */
@@ -253,6 +256,7 @@ export function Composer({
   restored = null,
   greeting = null,
   notices = null,
+  annotations = null,
   role = "interact",
   inert = false,
   onOpenHistory,
@@ -1114,6 +1118,7 @@ export function Composer({
     <div className={`composer${notices ? " has-notices" : ""}`} role="group" aria-label={t("Message composer")} data-dictating={dictation.voice.state !== "idle" ? "" : undefined} inert={inert || undefined}>
       {greeting}
       {notices}
+      {annotations}
       {/* no Tab key on a phone: the suggestion can be a chip there that fills the box, when Settings asks for it */}
       {settings.suggestionChip && offered !== null && text === "" && (
         <div className="composer-quick composer-suggestion-row">

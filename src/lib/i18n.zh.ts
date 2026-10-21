@@ -319,6 +319,8 @@ const BASE: Record<string, string> = {
   "Insert into message": "插入到消息",
   "Too long to send as one message": "太长，无法作为一条消息发送",
   "Not sent: a message is still on its way.": "未发送：上一条消息仍在发送中。",
+  "Not sent: the agent is asking a question. Answer it first.": "未发送：智能体正在提问。请先回答。",
+  "Use Insert into message to send them from the message box instead.": "请改用“插入到消息”，从输入框发送。",
   // t3code ports (d)
   "Change PC": "切换电脑",
   "Selected": "已选择",

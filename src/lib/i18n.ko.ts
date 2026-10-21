@@ -315,6 +315,8 @@ const BASE: Record<string, string> = {
   "Insert into message": "메시지에 넣기",
   "Too long to send as one message": "메시지 하나로 보내기에는 너무 깁니다",
   "Not sent: a message is still on its way.": "보내지 않음: 이전 메시지를 아직 보내는 중입니다.",
+  "Not sent: the agent is asking a question. Answer it first.": "보내지 않음: 에이전트가 질문하고 있습니다. 먼저 답해 주세요.",
+  "Use Insert into message to send them from the message box instead.": "대신 '메시지에 넣기'로 입력창에 넣은 뒤 보내세요.",
   // t3code ports (d)
   "Change PC": "PC 바꾸기",
   "Selected": "선택됨",

@@ -905,11 +905,14 @@ export function PaneTerminal({
     const next = appendQuote(composerDrafts.read(key).text, markdown, MAX_COMPOSER_CHARS);
     if (next === null) return t("Too long for the message draft");
     composerDrafts.set(key, next);
+    noteClipboard(t("Added to the message draft"));
     return null;
-  }, [machineId, paneId, t]);
+  }, [machineId, noteClipboard, paneId, t]);
   const sendAnnotations = useCallback(async (markdown: string): Promise<true | string> => {
     if (paneId === null) return t("Not sent. Reconnect and try again.");
     if (markdown.length > MAX_COMPOSER_CHARS) return t("Too long to send as one message");
+    // an open question would take the whole message as its answer (composerSend): never that
+    if (answering !== null || heldByOpenQueue) return t("Not sent: the agent is asking a question. Answer it first.");
     const key = `ovis:composer-draft:${paneStorageId(machineId, paneId)}`;
     // the composer's own send lock: one message at a time, from either
     if (!composerDrafts.begin(key)) return t("Not sent: a message is still on its way.");
@@ -923,7 +926,7 @@ export function PaneTerminal({
     } finally {
       composerDrafts.end(key);
     }
-  }, [composerSend, machineId, paneId, t]);
+  }, [answering, composerSend, heldByOpenQueue, machineId, paneId, t]);
 
 
   // Capture the owner's pane for the entire upload batch, even across a pane switch.
@@ -1318,9 +1321,6 @@ export function PaneTerminal({
       {/* the composer belongs to the chat lens: in terminal mode the grid itself is
           the input surface (key bar included), so a second box would only duplicate it */}
       {presented && paneId !== null && chatMounted && !secretActive && !observing && !ended && (
-        <ChatAnnotationsBar key={`annotations-${paneId}`} storeKey={paneStorageId(machineId, paneId)} sendDisabled={!connected || held} onInsert={insertAnnotations} onSend={sendAnnotations} />
-      )}
-      {presented && paneId !== null && chatMounted && !secretActive && !observing && !ended && (
         <Composer
           key={paneId}
           paneId={paneId}
@@ -1344,6 +1344,8 @@ export function PaneTerminal({
           suggestion={chatPrompt?.pane !== paneId && chatSuggestion?.pane === paneId ? chatSuggestion.value : null}
           restored={chatPrompt?.pane !== paneId && chatRestored?.pane === paneId ? chatRestored.value : null}
           notices={composerNotices}
+          annotations={<ChatAnnotationsBar key={`annotations-${paneId}`} storeKey={paneStorageId(machineId, paneId)}
+            sendDisabled={!connected || held || answering !== null || heldByOpenQueue} onInsert={insertAnnotations} onSend={sendAnnotations} />}
           role={observing ? "observe" : role}
           onOpenHistory={historyOffered ? onOpenHistory : undefined}
           onOpenNewSession={onOpenNewSession}
