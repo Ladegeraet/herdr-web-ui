@@ -308,7 +308,7 @@ const BASE: Record<string, string> = {
   "Annotations": "주석",
   "On agent message": "에이전트 메시지에 대해",
   "On your message": "내 메시지에 대해",
-  "Remove annotation": "주석 삭제",
+  "Remove annotation {n}": "주석 {n} 삭제",
   "Clear all": "모두 지우기",
   "Clear all annotations?": "모든 주석을 지울까요?",
   "Every comment collected for this chat is removed.": "이 채팅에서 모은 댓글이 모두 삭제됩니다.",

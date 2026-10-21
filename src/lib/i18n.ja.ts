@@ -310,7 +310,7 @@ const BASE: Record<string, string> = {
   "Annotations": "注釈",
   "On agent message": "エージェントのメッセージ",
   "On your message": "あなたのメッセージ",
-  "Remove annotation": "注釈を削除",
+  "Remove annotation {n}": "注釈 {n} を削除",
   "Clear all": "すべて消去",
   "Clear all annotations?": "すべての注釈を消去しますか?",
   "Every comment collected for this chat is removed.": "このチャットで集めたコメントがすべて削除されます。",

@@ -312,7 +312,7 @@ const BASE: Record<string, string> = {
   "Annotations": "批注",
   "On agent message": "针对智能体消息",
   "On your message": "针对你的消息",
-  "Remove annotation": "删除批注",
+  "Remove annotation {n}": "删除批注 {n}",
   "Clear all": "全部清除",
   "Clear all annotations?": "清除所有批注？",
   "Every comment collected for this chat is removed.": "此聊天中收集的所有评论都将被删除。",
