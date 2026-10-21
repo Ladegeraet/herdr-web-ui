@@ -16,6 +16,11 @@ export function annotationSource(value: string | undefined | null): ChatAnnotati
   return value === "agent" || value === "user" ? value : null;
 }
 
+/** Whether two boxes overlap: a selection's line still inside the chat that shows it. */
+export function boxesMeet(a: Box, b: Box): boolean {
+  return a.bottom > b.top && a.top < b.bottom && a.right > b.left && a.left < b.right;
+}
+
 /** "14:32", the turn's local time, for the agent to find the message by; nothing without a time. */
 export function annotationContext(ts: string | null | undefined): string | undefined {
   if (!ts) return undefined;
