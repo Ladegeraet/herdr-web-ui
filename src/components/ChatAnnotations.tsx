@@ -88,7 +88,12 @@ export function ChatAnnotator({ root, storeKey }: { root: HTMLElement | null; st
     };
     // selectionchange comes in bursts (a drag, iOS's handles): one read per frame
     const schedule = (): void => { if (frame === 0) frame = window.requestAnimationFrame(update); };
-    const down = (event: PointerEvent): void => { if (event.pointerType === "mouse" && root.contains(event.target as Node)) dragging.current = true; };
+    const down = (event: PointerEvent): void => {
+      // iOS collapses the selection after the finger lifts, before the click: the press on Comment
+      // holds it until the click; a press anywhere else lets it go
+      if (!trigger.current?.contains(event.target as Node)) pressing.current = false;
+      if (event.pointerType === "mouse" && root.contains(event.target as Node)) dragging.current = true;
+    };
     const up = (): void => { if (!dragging.current) return; dragging.current = false; schedule(); };
     document.addEventListener("selectionchange", schedule);
     window.addEventListener("pointerdown", down, true);
@@ -130,7 +135,6 @@ export function ChatAnnotator({ root, storeKey }: { root: HTMLElement | null; st
     {selected !== null && editing === null && createPortal(
       <button ref={trigger} type="button" className={`btn chat-annotate-trigger${coarse ? " is-docked" : ""}`} style={place ?? { visibility: "hidden" }}
         onPointerDown={() => { pressing.current = true; }}
-        onPointerUp={() => { pressing.current = false; }}
         onPointerCancel={() => { pressing.current = false; }}
         // the press must not take the focus or the selection from the message
         onMouseDown={(event) => { event.preventDefault(); }}
@@ -252,7 +256,8 @@ function AnnotationsDialog({ storeKey, sendDisabled, onInsert, onSend, onClose }
   const [error, setError] = useState<string | null>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; }, []);
+  // set again on mount: StrictMode runs the cleanup once in development
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const surface = useFocusTrap<HTMLDivElement>(!confirming, { initialFocus: closeButton });
   useSheetSwipe(surface, sending || confirming ? null : onClose);
   usePhoneSheetBack(() => { if (sending) return false; onClose(); }, !confirming);
