@@ -96,6 +96,9 @@ export interface ComposerProps {
   restored?: string | null;
   greeting?: ReactNode;
   notices?: ReactNode;
+  /** the chat's collected annotations (ChatAnnotations.tsx): a chip over the card that, unlike a
+   * notice, leaves a phone's card floating over the transcript */
+  annotations?: ReactNode;
   /** the connection's confirmed role; "observe" also for a device that may only watch (PaneTerminal): the composer takes no input */
   role?: ClientRole;
   inert?: boolean;
@@ -198,6 +201,7 @@ export function Composer({
   restored = null,
   greeting = null,
   notices = null,
+  annotations = null,
   role = "interact",
   inert = false,
   onOpenHistory,
@@ -1116,6 +1120,7 @@ export function Composer({
     <div className={`composer${notices ? " has-notices" : ""}`} role="group" aria-label={t("Message composer")} data-dictating={dictation.voice.state !== "idle" ? "" : undefined} inert={inert || undefined}>
       {greeting}
       {notices}
+      {annotations}
       {/* no Tab key on a phone: the suggestion can be a chip there that fills the box, when Settings asks for it; a tap
           on the grey words in the box only focuses it, so the tap that starts the user's own reply never takes it */}
       {settings.suggestionChip && offered !== null && text === "" && (

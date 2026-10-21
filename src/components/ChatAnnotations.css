@@ -85,16 +85,13 @@
   line-height: 1.45;
 }
 
-/* the collection: one chip on the composer's column, over the card */
+/* the collection: one chip inside the composer, over the card (a row of its own, not a notice) */
 .chat-annotations-bar {
   flex: none;
   display: flex;
-  padding: var(--space-1) 0;
-}
-
-.terminal-stack.is-chat .chat-annotations-bar {
-  width: min(calc(100% - 2 * var(--space-4)), var(--chat-w));
-  margin: 0 auto;
+  /* the card's column, as the composer's notices take it (Composer.css) */
+  width: min(100%, var(--chat-w));
+  margin: 0 auto var(--space-2);
 }
 
 .chat-annotations-chip {
