@@ -2150,14 +2150,17 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   the selection's end once the drag ends; on touch a `--touch-target` pill docked centred over the
   chat's foot, clear of the system's selection menu and handles. The selection and copy stay the
   browser's; only a saved comment clears it. A selection across two messages offers nothing.
-- The comment editor is a `.menu` popover under the selection on a desktop (above it when there
-  is more room there) and the modal bottom sheet at `<=640px`: the quote (a `--rail-w` rail,
+- The comment editor is a `.menu` popover under the selection with a mouse (above it when there
+  is more room there; not modal, Tab leaves it) and a modal on touch (the bottom sheet at
+  `<=640px`, a dialog on a tablet, where a popover would sit behind the keyboard): the quote (a `--rail-w` rail,
   `--text-dim`, four lines at most), the comment field, Cancel and Save (Cmd/Ctrl+Enter). Escape and
   a press outside the popover close it unsaved.
-- Collected comments show as one `--accent-tint` chip ("{n} annotations") on the composer's column,
-  over the card. It opens a dialog listing each one (source, time, quote, comment, Remove), with
+- A selection whose end scrolled out of the chat offers nothing. Collected comments show as one
+  `--accent-tint` chip ("{n} annotations"), a row of the composer on the card's column (not a
+  notice, so a phone's card keeps floating over the transcript). It opens a dialog listing each one (source, time, quote, comment, Remove), with
   Clear all (through the confirm), Insert into message (appended to the draft as a terminal quote
-  is) and Send (the composer's own send, beside a draft that stays). They are held per pane, in
+  is, with "Added to the message draft") and Send (the composer's own send, beside a draft that
+  stays; refused while the agent asks a question, which would take it as the answer). They are held per pane, in
   memory only (lib/chatAnnotations.ts).
 - Follows the Claude app's select-to-quote and GitHub's pull request review: comments are gathered
   first and handed over as one message, not sent one by one.
