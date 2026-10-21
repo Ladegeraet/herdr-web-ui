@@ -19,7 +19,7 @@ import { MessageSquarePlus, MessageSquareText, Trash2, X } from "lucide-react";
 import "./ChatAnnotations.css";
 
 import { addAnnotation, clearAnnotations, formatAnnotationsMarkdown, removeAnnotation, useChatAnnotations, type ChatAnnotationSource } from "../lib/chatAnnotations.ts";
-import { annotationContext, annotationSource, popoverPlace, triggerPlace, type Box } from "../lib/chatSelection.ts";
+import { annotationContext, annotationSource, boxesMeet, popoverPlace, triggerPlace, type Box } from "../lib/chatSelection.ts";
 import { useT } from "../lib/i18n.ts";
 import { SHEET_QUERY, useSheetSwipe } from "../lib/sheets.ts";
 import { usePhoneSheetBack, useSheetHistory } from "../lib/sheetHistory.ts";
@@ -57,6 +57,8 @@ function readSelection(root: HTMLElement): Selected | null {
   if (source === null || quote === null) return null;
   const lines = range.getClientRects();
   const last = lines[lines.length - 1] ?? range.getBoundingClientRect();
+  // its end scrolled out of the chat: Comment would stand over other words, or the composer
+  if (!boxesMeet(boxOf(last), boxOf(root.getBoundingClientRect()))) return null;
   return { source, quote, context: annotationContext(start.dataset.annotateTs), box: boxOf(range.getBoundingClientRect()), end: boxOf(last) };
 }
 
@@ -92,12 +94,17 @@ export function ChatAnnotator({ root, storeKey }: { root: HTMLElement | null; st
       // iOS collapses the selection after the finger lifts, before the click: the press on Comment
       // holds it until the click; a press anywhere else lets it go
       if (!trigger.current?.contains(event.target as Node)) pressing.current = false;
-      if (event.pointerType === "mouse" && root.contains(event.target as Node)) dragging.current = true;
+      // only the main button drags out a selection: a right-click's menu can swallow its pointerup
+      dragging.current = event.pointerType === "mouse" && event.button === 0 && root.contains(event.target as Node);
     };
     const up = (): void => { if (!dragging.current) return; dragging.current = false; schedule(); };
     document.addEventListener("selectionchange", schedule);
     window.addEventListener("pointerdown", down, true);
     window.addEventListener("pointerup", up, true);
+    // a drag the browser ended without a pointerup (a context menu, the window losing focus)
+    window.addEventListener("pointercancel", up, true);
+    window.addEventListener("contextmenu", up, true);
+    window.addEventListener("blur", up);
     // the chat scrolls under a selection: Comment follows its words
     root.addEventListener("scroll", schedule, true);
     window.addEventListener("resize", schedule);
@@ -106,6 +113,9 @@ export function ChatAnnotator({ root, storeKey }: { root: HTMLElement | null; st
       document.removeEventListener("selectionchange", schedule);
       window.removeEventListener("pointerdown", down, true);
       window.removeEventListener("pointerup", up, true);
+      window.removeEventListener("pointercancel", up, true);
+      window.removeEventListener("contextmenu", up, true);
+      window.removeEventListener("blur", up);
       root.removeEventListener("scroll", schedule, true);
       window.removeEventListener("resize", schedule);
     };
@@ -151,8 +161,13 @@ function AnnotationEditor({ selected, onSave, onClose }: { selected: Selected; o
   const t = useT();
   const id = useId();
   const sheet = useMediaQuery(SHEET_QUERY);
+  // a touch screen gets the modal (a sheet on a phone, a dialog on a tablet): a popover under the
+  // selection would sit behind the on-screen keyboard, which iOS leaves out of innerHeight
+  const coarse = useMediaQuery("(pointer: coarse)");
+  const modal = sheet || coarse;
   const field = useRef<HTMLTextAreaElement>(null);
-  const surface = useFocusTrap<HTMLDivElement>(true, { initialFocus: field });
+  // only the modal traps Tab; focus never goes back to the composer on touch, which would raise the keyboard
+  const surface = useFocusTrap<HTMLDivElement>(modal, { initialFocus: field, shouldRestore: () => !coarse });
   useSheetSwipe(surface, sheet ? onClose : null);
   useSheetHistory(sheet, onClose);
   const [comment, setComment] = useState("");
@@ -161,9 +176,11 @@ function AnnotationEditor({ selected, onSave, onClose }: { selected: Selected; o
 
   useLayoutEffect(() => {
     const node = surface.current;
-    if (sheet || node === null) return;
+    if (modal || node === null) return;
     setPlace(popoverPlace(selected.box, viewport(), { width: node.offsetWidth, height: node.offsetHeight }));
-  }, [selected, sheet, surface]);
+    // the popover is not modal and traps nothing: the field just takes the focus
+    field.current?.focus({ preventScroll: true });
+  }, [modal, selected, surface]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
@@ -174,7 +191,7 @@ function AnnotationEditor({ selected, onSave, onClose }: { selected: Selected; o
     };
     // the popover is not modal: a press outside it closes it, as a menu's does
     const onPointer = (event: PointerEvent): void => {
-      if (!sheet && !surface.current?.contains(event.target as Node)) onClose();
+      if (!modal && !surface.current?.contains(event.target as Node)) onClose();
     };
     window.addEventListener("keydown", onKey, true);
     window.addEventListener("pointerdown", onPointer, true);
@@ -182,7 +199,7 @@ function AnnotationEditor({ selected, onSave, onClose }: { selected: Selected; o
       window.removeEventListener("keydown", onKey, true);
       window.removeEventListener("pointerdown", onPointer, true);
     };
-  }, [onClose, sheet, surface]);
+  }, [modal, onClose, surface]);
 
   const onFieldKey = (event: ReactKeyboardEvent<HTMLTextAreaElement>): void => {
     if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey) || event.nativeEvent.isComposing) return;
@@ -206,7 +223,7 @@ function AnnotationEditor({ selected, onSave, onClose }: { selected: Selected; o
     </footer>
   </>;
 
-  if (sheet) {
+  if (modal) {
     return createPortal(
       <div className="modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
         <div ref={surface} className="modal chat-annotate-editor" role="dialog" aria-modal="true" aria-labelledby={`${id}-title`} tabIndex={-1}>{body}</div>
@@ -317,7 +334,8 @@ function AnnotationsDialog({ storeKey, sendDisabled, onInsert, onSend, onClose }
               <p className="chat-annotations-item-comment">{annotation.comment}</p>
             </li>)}
           </ol>
-          {error !== null && <p className="chat-annotations-error" role="alert">{error}</p>}
+          {/* a refusal's own way on (Send anyway, clearing the box) is the composer's: the way there is Insert */}
+          {error !== null && <p className="chat-annotations-error" role="alert">{error} {t("Use Insert into message to send them from the message box instead.")}</p>}
         </div>
         <footer className="modal-footer chat-annotations-footer">
           <button type="button" className="btn btn-ghost chat-annotations-clear" disabled={sending} onClick={() => { setConfirming(true); }}>{t("Clear all")}</button>
