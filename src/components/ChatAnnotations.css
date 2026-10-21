@@ -100,9 +100,11 @@
   gap: var(--space-1);
   min-height: var(--control-h);
   padding: 0 var(--space-3);
-  background: var(--accent-tint);
+  /* opaque, as the card under it: on a phone the composer floats over the transcript's end */
+  background: var(--bg-elevated);
   border: var(--hairline) solid var(--border);
   border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-card);
   color: var(--text-strong);
   font: inherit;
   font-size: var(--fs-sm);
