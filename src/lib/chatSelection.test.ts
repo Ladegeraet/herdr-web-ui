@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { annotationContext, annotationSource, popoverPlace, triggerPlace } from "./chatSelection.ts";
+import { annotationContext, annotationSource, boxesMeet, popoverPlace, triggerPlace } from "./chatSelection.ts";
 
 const view = { width: 1000, height: 800 };
 
@@ -10,6 +10,20 @@ describe("annotationSource", () => {
     expect(annotationSource("user")).toBe("user");
     expect(annotationSource("tool")).toBeNull();
     expect(annotationSource(undefined)).toBeNull();
+  });
+});
+
+describe("boxesMeet", () => {
+  const chat = { top: 100, bottom: 700, left: 300, right: 1200 };
+
+  it("holds a line inside the chat, or cut by its edge", () => {
+    expect(boxesMeet({ top: 200, bottom: 220, left: 400, right: 600 }, chat)).toBe(true);
+    expect(boxesMeet({ top: 90, bottom: 110, left: 400, right: 600 }, chat)).toBe(true);
+  });
+
+  it("lets go of a line scrolled out above or below", () => {
+    expect(boxesMeet({ top: 40, bottom: 60, left: 400, right: 600 }, chat)).toBe(false);
+    expect(boxesMeet({ top: 700, bottom: 720, left: 400, right: 600 }, chat)).toBe(false);
   });
 });
 
