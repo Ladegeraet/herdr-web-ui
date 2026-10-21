@@ -1289,7 +1289,7 @@ export function PaneTerminal({
       />}
       {presented && paneId !== null && chatMounted && <div className="prompt-dock" ref={setPromptDock} aria-live="polite" inert={peek !== null || undefined} />}
       {presented && paneId !== null && chatMounted && !secretActive && !observing && !ended && (
-        <ChatAnnotationsBar key={`annotations-${paneId}`} storeKey={paneId} sendDisabled={!connected || held} onInsert={insertAnnotations} onSend={sendAnnotations} />
+        <ChatAnnotationsBar key={`annotations-${paneId}`} storeKey={paneStorageId(machineId, paneId)} sendDisabled={!connected || held} onInsert={insertAnnotations} onSend={sendAnnotations} />
       )}
       {presented && paneId !== null && chatMounted && !secretActive && !observing && !ended && (
         <Composer
