@@ -38,6 +38,7 @@ import { FindBar } from "./FindBar.tsx";
 import { TerminalViewportTools, type TerminalSearchState } from "./TerminalViewportTools.tsx";
 import { SecretInput } from "./SecretInput.tsx";
 import { ChatView } from "./ChatView.tsx";
+import { ChatAnnotationsBar } from "./ChatAnnotations.tsx";
 import { RenderBoundary } from "./RenderBoundary.tsx";
 import { Composer } from "./Composer.tsx";
 import { ComposerNotices, type ComposerNoticeRow } from "./ComposerNotices.tsx";
@@ -896,6 +897,34 @@ export function PaneTerminal({
 
   const { composerSend, actOnPending, waitingAnswer } = useComposerSends({ agent, agentStatus, answerPanePrompt, answering, draftHeldForRef, ended, heldByOpenQueue, heldRef, inputAtRest, inputRowNow, knownOutcomes, observeRef, paneId, paneRef, pendingAnswer, pendingScopeRef, queueOwner, queueStore, machineId, secretRef, setPendingAnswer, setPromptRefresh, settings, showSentCommand, socketRef, stillOpenNote, stillOpenNotedRef, stillOpenRef, submitComposerMessage, submitRetention, t, chatNavigation, setChatLocalSend, sessionRef });
 
+  // the chat's annotations (ChatAnnotations.tsx) go where a quote goes: after the message draft,
+  // or out at once through the composer's own send, beside a draft that stays as it is
+  const insertAnnotations = useCallback((markdown: string): string | null => {
+    if (paneId === null) return t("Not sent. Reconnect and try again.");
+    const key = `ovis:composer-draft:${paneStorageId(machineId, paneId)}`;
+    const next = appendQuote(composerDrafts.read(key).text, markdown, MAX_COMPOSER_CHARS);
+    if (next === null) return t("Too long for the message draft");
+    composerDrafts.set(key, next);
+    return null;
+  }, [machineId, paneId, t]);
+  const sendAnnotations = useCallback(async (markdown: string): Promise<true | string> => {
+    if (paneId === null) return t("Not sent. Reconnect and try again.");
+    if (markdown.length > MAX_COMPOSER_CHARS) return t("Too long to send as one message");
+    const key = `ovis:composer-draft:${paneStorageId(machineId, paneId)}`;
+    // the composer's own send lock: one message at a time, from either
+    if (!composerDrafts.begin(key)) return t("Not sent: a message is still on its way.");
+    try {
+      const result = await composerSend(markdown);
+      if (result === true) return true;
+      if (result === false) return t("Not sent. Reconnect and try again.");
+      return typeof result === "string" ? result : result.note;
+    } catch {
+      return t("Not confirmed. Check the terminal before sending again.");
+    } finally {
+      composerDrafts.end(key);
+    }
+  }, [composerSend, machineId, paneId, t]);
+
 
   // Capture the owner's pane for the entire upload batch, even across a pane switch.
   const uploadImage = useCallback((file: Blob) => uploadPaneImage(paneId ?? "", file), [paneId]);
@@ -1288,6 +1317,9 @@ export function PaneTerminal({
       {presented && paneId !== null && chatMounted && <div className="prompt-dock" ref={setPromptDock} aria-live="polite" inert={peek !== null || undefined} />}
       {/* the composer belongs to the chat lens: in terminal mode the grid itself is
           the input surface (key bar included), so a second box would only duplicate it */}
+      {presented && paneId !== null && chatMounted && !secretActive && !observing && !ended && (
+        <ChatAnnotationsBar key={`annotations-${paneId}`} storeKey={paneId} sendDisabled={!connected || held} onInsert={insertAnnotations} onSend={sendAnnotations} />
+      )}
       {presented && paneId !== null && chatMounted && !secretActive && !observing && !ended && (
         <Composer
           key={paneId}

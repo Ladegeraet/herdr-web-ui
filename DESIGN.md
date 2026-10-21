@@ -2144,6 +2144,24 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   follows T3 Code's separation of [transport health and data freshness](https://github.com/pingdotgg/t3code/blob/main/docs/internals/connection-runtime.md):
   an open socket alone does not prove the conversation is current. No code or new controls are borrowed.
 
+### Chat annotations (`.chat-annotate-*`, `.chat-annotations-*`)
+- Text selected inside one chat message (the agent's turn or the user's own, `data-annotate` on the
+  turn) offers **Comment** (lucide `MessageSquarePlus`): with a mouse a `--control-h` pill under
+  the selection's end once the drag ends; on touch a `--touch-target` pill docked centred over the
+  chat's foot, clear of the system's selection menu and handles. The selection and copy stay the
+  browser's; only a saved comment clears it. A selection across two messages offers nothing.
+- The comment editor is a `.menu` popover under the selection on a desktop (above it when there
+  is more room there) and the modal bottom sheet at `<=640px`: the quote (a `--rail-w` rail,
+  `--text-dim`, four lines at most), the comment field, Cancel and Save (Cmd/Ctrl+Enter). Escape and
+  a press outside the popover close it unsaved.
+- Collected comments show as one `--accent-tint` chip ("{n} annotations") on the composer's column,
+  over the card. It opens a dialog listing each one (source, time, quote, comment, Remove), with
+  Clear all (through the confirm), Insert into message (appended to the draft as a terminal quote
+  is) and Send (the composer's own send, beside a draft that stays). They are held per pane, in
+  memory only (lib/chatAnnotations.ts).
+- Follows the Claude app's select-to-quote and GitHub's pull request review: comments are gathered
+  first and handed over as one message, not sent one by one.
+
 ### Work block (`.work-block`, `.work-row`)
 - One per run of work in an assistant turn, in the agent's own order as its terminal shows it:
   words the agent wrote before a tool call stay above that call's block, and a turn that talks
