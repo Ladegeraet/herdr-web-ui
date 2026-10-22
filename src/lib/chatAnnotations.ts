@@ -1,5 +1,7 @@
 import { useCallback, useSyncExternalStore } from "react";
 
+import type { TextAnchor } from "./chatHighlights.ts";
+
 /**
  * Comments the user pins to text they selected in a chat, collected per conversation (the pane
  * id) and handed back to the agent as Markdown. Held in memory only: a reload starts empty.
@@ -17,6 +19,8 @@ export interface ChatAnnotation {
   context?: string;
   /** The `data-annotate-ts` of the message the quote came from, to find it again in the chat. */
   turnTs?: string;
+  /** Where the selection stood in that message's words, to mark it again even where its words repeat. */
+  anchor?: TextAnchor;
   /** Reserved; no UI sets it yet. */
   tag?: string;
   createdAt: number;
@@ -219,6 +223,14 @@ export function markAnnotationsSent(key: string, ids: readonly string[]): void {
 /** The same array until the conversation's sent annotations change. */
 export function getSentAnnotations(key: string): readonly ChatAnnotation[] {
   return sentStore.get(key) ?? EMPTY;
+}
+
+const looseQuote = (quote: string): string => quote.replace(/\s+/g, " ").trim();
+
+/** The latest annotation sent from this page that a feedback card read back from a message stands for; undefined after a reload. */
+export function sentAnnotationOf(key: string, card: SentAnnotation): ChatAnnotation | undefined {
+  const quote = looseQuote(card.quote);
+  return [...getSentAnnotations(key)].reverse().find((annotation) => annotation.source === card.source && looseQuote(annotation.quote) === quote);
 }
 
 export function subscribeAnnotations(key: string, listener: () => void): () => void {

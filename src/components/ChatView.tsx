@@ -19,11 +19,12 @@ import { PromptCard } from "./PromptCard.tsx";
 import { RenderBoundary } from "./RenderBoundary.tsx";
 import { loadChatTimeline, loadedChatTimeline, useChatTimeline } from "./chatTimelineLoader.ts";
 import { ChatMinimap } from "./ChatMinimap.tsx";
-import { ChatAnnotationMarks, flashPassage, passageRange } from "./ChatAnnotationMarks.tsx";
+import { ChatAnnotationMarks, flashPassage } from "./ChatAnnotationMarks.tsx";
 import { ChatFeedbackCards, FeedbackJumpContext, jumpToMountedPassage } from "./ChatFeedbackCards.tsx";
 import { ChatAnnotator } from "./ChatAnnotations.tsx";
-import { parseAnnotationsBlock, type SentAnnotation } from "../lib/chatAnnotations.ts";
+import { parseAnnotationsBlock, sentAnnotationOf, type SentAnnotation } from "../lib/chatAnnotations.ts";
 import { minimapTurns } from "../lib/chatMinimap.ts";
+import { passageMatch, passageRange } from "../lib/chatPassage.ts";
 import type { LegendListRef } from "@legendapp/list/react";
 import { appendChatRowSlots, continuesHistory, createChatRowSlots, prependChatRowSlots } from "../lib/chatRows.ts";
 import { ChatDetails, ChatRowMemoryContext, useChatRowToggle, useRowFocus, type ChatRowMemory } from "../lib/chatRowState.tsx";
@@ -2227,6 +2228,11 @@ export const ChatView = memo(function ChatView({ paneId, presentationKey, finish
   const timelineRowsRef = useRef(timelineRows);
   timelineRowsRef.current = timelineRows;
   const jumpToPassage = useCallback((from: Element, annotation: SentAnnotation): void => {
+    // the annotation the card was sent from, while this page still holds it: its anchor finds words that repeat
+    const saved = sentAnnotationOf(paneStorageId(machineId, paneId), annotation);
+    const savedMessage = saved?.turnTs ? annotateRoot?.querySelector(`[data-annotate-ts="${CSS.escape(saved.turnTs)}"]`) : null;
+    const savedRange = savedMessage && saved ? passageRange(savedMessage, saved.quote, saved.anchor) : null;
+    if (savedRange !== null) { flashPassage(savedRange); return; }
     if (jumpToMountedPassage(from, annotation)) return;
     const turns = shownTurnsRef.current;
     const fromTs = from.closest<HTMLElement>("[data-annotate-ts]")?.dataset.annotateTs;
@@ -2245,12 +2251,13 @@ export const ChatView = memo(function ChatView({ paneId, presentationKey, finish
     let frames = 0;
     const look = (): void => {
       const message = annotateRoot?.querySelector(`[data-annotate-ts="${CSS.escape(ts)}"]`);
-      const range = message ? passageRange(message, annotation.quote) : null;
+      const range = message ? passageMatch(message, annotation.quote, saved?.turnTs === ts ? saved.anchor : undefined) : null;
+      if (range === "ambiguous") return;
       if (range !== null) flashPassage(range);
       else if (++frames < 30) requestAnimationFrame(look);
     };
     requestAnimationFrame(look);
-  }, [annotateRoot, jumpToTurn]);
+  }, [annotateRoot, jumpToTurn, machineId, paneId]);
   const renderTurn = useCallback((row: ChatRow) => {
     if (row.turn === null) return <OutcomeRow outcome={row.outcome} actions={outcomeActions} skills={skillMatcher} />;
     const { turn } = row;

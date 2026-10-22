@@ -1,18 +1,19 @@
 /**
- * Marks the passages the chat's annotations were made on (lib/chatAnnotations.ts): a dotted
- * underline on a light tint while pending, a paler underline once sent. Drawn with the CSS Custom
- * Highlight API, so the message's DOM stays React's and a virtualized row that mounts again is
- * marked again; a browser without it marks nothing. A tap on a pending passage opens its editor.
- * Each quote is found by its words in the message it came from (`data-annotate-ts`), the first
- * match; one that is not there, or a message scrolled out of the window, is skipped. A sent
- * feedback card's quote lights its passage for a moment (flashPassage).
+ * Marks the passages the chat's annotations were made on (lib/chatAnnotations.ts): a solid accent
+ * tint while pending, a paler one once sent. Drawn with the CSS Custom Highlight API, so the
+ * message's DOM stays React's and a virtualized row that mounts again is marked again; a browser
+ * without it marks nothing. A tap on a pending passage opens its editor. Each passage is found in
+ * the message it came from (`data-annotate-ts`) by its saved anchor (lib/chatHighlights.ts), or
+ * its words alone when it has none; one that is not there, or not in one place only, or a message
+ * scrolled out of the window, is skipped. A sent feedback card's quote lights its passage for a
+ * moment (flashPassage).
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import "./ChatAnnotationMarks.css";
 
 import { useChatAnnotations, useSentAnnotations, type ChatAnnotation } from "../lib/chatAnnotations.ts";
-import { findQuote } from "../lib/chatHighlights.ts";
+import { NOT_WORDS, passageRange } from "../lib/chatPassage.ts";
 import { AnnotationEditDialog } from "./ChatAnnotations.tsx";
 
 const SUPPORTED = typeof Highlight === "function" && typeof CSS !== "undefined" && "highlights" in CSS;
@@ -32,33 +33,10 @@ function highlights(): { pending: Highlight; sent: Highlight } {
   return shared;
 }
 
-// the message's words, not a button's name or a field's text, nor the cards of feedback sent with it
-const NOT_WORDS = "button, input, textarea, [contenteditable], .chat-feedback";
-
-function textNodes(element: Element): Text[] {
-  const nodes: Text[] = [];
-  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, {
-    acceptNode: (node) => (node.parentElement?.closest(NOT_WORDS) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
-  });
-  for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) nodes.push(node as Text);
-  return nodes;
-}
-
-/** Where `quote` first stands in the message's words, whitespace aside; null when it is not there. */
-export function passageRange(message: Element, quote: string): Range | null {
-  const nodes = textNodes(message);
-  const span = findQuote(nodes.map((node) => node.data), quote);
-  if (span === null) return null;
-  const range = document.createRange();
-  range.setStart(nodes[span.start.node] as Text, span.start.offset);
-  range.setEnd(nodes[span.end.node] as Text, span.end.offset);
-  return range;
-}
-
 function rangeOf(root: HTMLElement, annotation: ChatAnnotation): Range | null {
   if (!annotation.turnTs) return null;
   const message = root.querySelector(`[data-annotate-ts="${CSS.escape(annotation.turnTs)}"]`);
-  return message === null ? null : passageRange(message, annotation.quote);
+  return message === null ? null : passageRange(message, annotation.quote, annotation.anchor);
 }
 
 /** How long a passage jumped to from a sent card stays lit. */
@@ -145,7 +123,7 @@ export function ChatAnnotationMarks({ root, storeKey }: { root: HTMLElement | nu
       // a drag that selected, a long press: the selection is the user's, not a tap on a mark
       const selection = document.getSelection();
       if (selection !== null && !selection.isCollapsed) return;
-      if (event.target instanceof Element && event.target.closest(`a, summary, ${NOT_WORDS}`)) return;
+      if (event.target instanceof Element && event.target.closest(`a, summary, button, ${NOT_WORDS}`)) return;
       for (const [range, id] of marked.current) {
         if (!hits(range, event.clientX, event.clientY)) continue;
         setEditing({ id, anchor: range.getBoundingClientRect() });

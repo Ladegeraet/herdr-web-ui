@@ -2195,15 +2195,26 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   one that does not read back whole stays Markdown. Copy still copies the message as sent. A tap on
   a quote finds the passage in an earlier message of its side (its time first; a turn the list has
   not mounted is scrolled to first), scrolls it to the middle and lights it for a moment
-  (`chat-annotation-flash`: `--accent-tint` under a solid `--accent` underline); one not found does
-  nothing. Follows the Claude and Codex apps, which show what went with a message (a file, a quoted
+  (`chat-annotation-flash`: `--accent` mixed in at 40% under a 2px solid `--accent` underline),
+  by the anchor of the annotation it was sent from while the page still holds it; one not found,
+  or whose words stand twice with nothing to choose by, does nothing. Follows the Claude and Codex apps, which show what went with a message (a file, a quoted
   passage) as a compact attachment under it rather than as its text.
 - The passage a comment was made on is marked in its message with the CSS Custom Highlight API
-  (no DOM change): pending is a dotted `--accent` underline on `--accent-tint`, sent is a dotted
-  `--text-dim` underline. It is found by text, whitespace ignored, first match in the message
-  (`data-annotate-ts`). A passage that can't be found, or a browser without the API, shows no mark.
-  A tap on a pending mark (without a selection) opens its editor. Follows Google Docs' and Notion's
-  comment highlights.
+  (no DOM change), one highlight per state holding every passage: pending is a solid tint
+  (`color-mix` of `--accent` at 28%) with a 1px solid `--accent` underline, sent a calmer 11% tint
+  with no underline. Both read over inline code's own background, in dark and light themes.
+- A passage is anchored when its comment is saved, from the selection's DOM Range (lib/chatHighlights.ts,
+  lib/chatPassage.ts): its start and end in the message's normalized text (text nodes joined, each
+  whitespace run one space, one space at each block's edge), its words there and about 32
+  characters either side. The mark takes that place while its words are still there; else it looks
+  for the words, whitespace ignored, and where they stand twice takes the place whose context
+  matches best, or marks nothing rather than the wrong words. A sent card read back from a message
+  has no anchor and is found by its quote, only where it stands once. File paths drawn as buttons
+  count as words, so a passage across one is found; a control's name never does. A passage that
+  can't be found, or a browser without the API, shows no mark. A tap on a pending mark (without a
+  selection) opens its editor. Follows the W3C Web Annotation model (a text position checked by a
+  text quote with its prefix and suffix), as T3 Code's assistantTextSelection does, and Google
+  Docs' and Notion's solid comment highlights.
 - Follows the Claude app's select-to-quote and GitHub's pull request review: comments are gathered
   first and handed over as one message, not sent one by one.
 
