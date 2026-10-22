@@ -996,6 +996,16 @@
   color: var(--status-blocked);
 }
 
+/* a note that is no failure (comments held back for the next message): the card's own surface */
+.composer-note.is-calm {
+  background: var(--bg-elevated);
+  border-color: var(--border);
+}
+
+.composer-note.is-calm .composer-note-icon {
+  color: var(--text-dim);
+}
+
 /* pre-line: the draft a Send it did not send goes on its own line under the reason (draftSendNote) */
 .composer-note-text {
   flex: 1 1 12rem;

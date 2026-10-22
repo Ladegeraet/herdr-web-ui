@@ -12,7 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { flushSync } from "react-dom";
-import { ArrowUp, FileText, Folder, FolderGit2, GitBranch, LoaderCircle, MessageSquarePlus, Minimize2, Package, Plus, Puzzle, Square, TriangleAlert, UserRound, X, type LucideIcon } from "lucide-react";
+import { ArrowUp, FileText, Folder, FolderGit2, GitBranch, Info, LoaderCircle, MessageSquarePlus, Minimize2, Package, Plus, Puzzle, Square, TriangleAlert, UserRound, X, type LucideIcon } from "lucide-react";
 
 import "./Composer.css";
 
@@ -340,6 +340,10 @@ export function Composer({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [dragging, setDragging] = useState(false);
   const [note, setNote] = useState<string | DraftRefusal | UploadFailure | null>(null);
+  // a note that tells how a send went as it should (the comments held back), not why it failed:
+  // drawn calm while it is the note shown
+  const [calmNote, setCalmNote] = useState<string | null>(null);
+  const tell = useCallback((text: string) => { setNote(text); setCalmNote(text); }, []);
   // shown only when chosen in Settings → Quick replies: a button beside the box was one more thing to read
   const quickOpen = settings.showQuickReplies;
   const quickReplies = quickReplyButtons(settings);
@@ -837,8 +841,8 @@ export function Composer({
     // the box's text is what the draft settles; the message sent can carry the annotations after it
     const plan = planAnnotatedSend(message, annotations, { immediate: composerDelivery(agent, agentStatus) === "immediate", answering: answerHint !== null, max: MAX_COMPOSER_CHARS });
     if (plan.kind === "refuse") {
-      setNote(plan.reason === "too-long" ? t("Too long to send with your comments: a message holds {max} characters.", { max: formatChars(MAX_COMPOSER_CHARS) })
-        : plan.reason === "question" ? t("Your comments do not go with an answer to the agent's question. Answer it first, then send them.")
+      if (plan.reason === "too-long") setNote(t("Too long to send with your comments: a message holds {max} characters.", { max: formatChars(MAX_COMPOSER_CHARS) }));
+      else tell(plan.reason === "question" ? t("Your comments do not go with an answer to the agent's question. Answer it first, then send them.")
         : t("Your comments wait until the agent is done: send them once it stops working."));
       return true;
     }
@@ -861,8 +865,9 @@ export function Composer({
       setCaret(rest.length);
       textRef.current = rest;
       caretRef.current = rest.length;
-      setNote(edited ? t("Sent as it was. Your changes made while it was sending stayed here and were not sent.")
-        : plan.heldBack ? t("Sent without your comments: they stay for your next message.") : null);
+      if (edited) setNote(t("Sent as it was. Your changes made while it was sending stayed here and were not sent."));
+      else if (plan.heldBack) tell(t("Sent without your comments: they stay for your next message."));
+      else setNote(null);
       for (const attachment of sentAttachments) { URL.revokeObjectURL(attachment.previewUrl); placedMentions.current.delete(attachment.id); }
       setAttachments((current) => current.filter((attachment) => !sentAttachments.includes(attachment)));
     };
@@ -884,7 +889,7 @@ export function Composer({
       if (mounted.current) setNote(t("Not confirmed. Check the terminal before sending again."));
     }
     return true;
-  }, [agent, agentStatus, annotationKey, annotations, answerHint, attachments, carried, commentsKey, connected, dictation.forget, draftKey, onOpenHistory, onSend, role, roomless, sendable, sending, t, terminalTyped, text, uploading]);
+  }, [agent, agentStatus, annotationKey, annotations, answerHint, attachments, carried, commentsKey, connected, dictation.forget, draftKey, onOpenHistory, onSend, role, roomless, sendable, sending, t, tell, terminalTyped, text, uploading]);
   const sendRef = useRef(send);
   sendRef.current = send;
   const connectedRef = useRef(connected);
@@ -1165,8 +1170,8 @@ export function Composer({
 
       {/* why the message in the box did not go: on the box's top edge, read with it, its one way on beside it */}
       {note !== null && noteLine !== null && (
-        <div className="composer-note" role="alert">
-          <TriangleAlert className="composer-note-icon" aria-hidden="true" />
+        <div className={`composer-note${note === calmNote ? " is-calm" : ""}`} role={note === calmNote ? "status" : "alert"}>
+          {note === calmNote ? <Info className="composer-note-icon" aria-hidden="true" /> : <TriangleAlert className="composer-note-icon" aria-hidden="true" />}
           <div className="composer-note-text">
             {noteLine}
             {typeof note === "object" && "failure" in note && (note.failure.advice !== null || note.failure.detail !== null) && <details className="composer-note-details">

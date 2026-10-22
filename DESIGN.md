@@ -2153,20 +2153,23 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
 - The comment editor is a `.menu` popover under the selection with a mouse (above it when there
   is more room there; not modal, Tab leaves it) and a modal on touch (the bottom sheet at
   `<=640px`, a dialog on a tablet, where a popover would sit behind the keyboard): the quote (a `--rail-w` rail,
-  `--text-dim`, four lines at most), the comment field, Cancel and Save (Cmd/Ctrl+Enter). With a
+  `--text-dim`, four lines at most), the comment field (optional: without one the passage is only flagged, and its chip shows the
+  quote), Cancel and Save (Cmd/Ctrl+Enter); a comment being edited is typed on at its end. With a
   keyboard, `C` opens it on the selection too. Escape and Cancel close it unsaved; a press outside
   the popover, a tap on the scrim or a swipe on the sheet closes it only while no comment is written.
 - A selection whose end scrolled out of the chat offers nothing. Collected comments wait as chips in
   the composer, a row on the card's column (not a notice, so a phone's card keeps floating over the
   transcript), opaque `--bg-elevated` pills like an attachment: the comment (or the quote without one)
   on one line, cut at 64 characters, and an X. A tap opens the same editor on it, with Delete. Past
-  three they fold into one "{n} comments" chip that opens them, beside a small Clear all (through
-  the confirm). They are held per pane, in memory only (lib/chatAnnotations.ts).
+  three they fold into one "{n} comments" chip (a chevron down while folded, up while open) that
+  opens them, beside a Clear all chip (through the confirm). With a mouse, the focus goes on to the
+  new chip after a save, and back where it came from after a cancel or delete. They are held per pane, in memory only (lib/chatAnnotations.ts).
 - The composer's Send carries them, as an attachment: the typed text first, then the annotations'
   Markdown block; with them, an empty box can be sent. Only a message delivered at once takes them,
   and they leave only once it is confirmed (one added meanwhile stays). A message queued while the
-  agent works, or taken as the answer to its open question, goes without them with a note, and
-  they stay; with nothing typed it is refused with that note. A block too long for one message is
+  agent works, or taken as the answer to its open question, goes without them with a calm note
+  (`--bg-elevated`, not the failure's tint), and they stay; with nothing typed it is refused with
+  that note. A block too long for one message is
   refused.
 - The passage a comment was made on is marked in its message with the CSS Custom Highlight API
   (no DOM change): pending is a dotted `--accent` underline on `--accent-tint`, sent is a dotted
