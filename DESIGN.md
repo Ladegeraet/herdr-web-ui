@@ -2154,8 +2154,11 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   is more room there; not modal, Tab leaves it) and a modal on touch (the bottom sheet at
   `<=640px`, a dialog on a tablet, where a popover would sit behind the keyboard): the quote (a `--rail-w` rail,
   `--text-dim`, four lines at most), the comment field (optional: without one the passage is only flagged, and its chip shows the
-  quote), Cancel and Save (Cmd/Ctrl+Enter); a comment being edited is typed on at its end. With a
-  keyboard, `C` opens it on the selection too. Escape and Cancel close it unsaved; a press outside
+  quote), Cancel and Save; a comment being edited is typed on at its end. The field's keys are the
+  composer's (lib/enterSubmits.ts, one helper for both): with "Enter sends" on, Enter saves and
+  Shift+Enter is a new line; off, Cmd/Ctrl+Enter saves and Enter is a new line; touch follows the
+  same setting, and an IME's Enter never saves. With a keyboard, `C` opens it on the selection too.
+  A selection inside a sent message's comment cards offers nothing. Escape and Cancel close it unsaved; a press outside
   the popover, a tap on the scrim or a swipe on the sheet closes it only while no comment is written.
 - A selection whose end scrolled out of the chat offers nothing. Collected comments wait as chips in
   the composer, a row on the card's column (not a notice, so a phone's card keeps floating over the
@@ -2166,8 +2169,11 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   stays at its start, and the chips after it scroll sideways, snapping to a chip, with no scrollbar
   (a mouse wheel turns the row) and the edge that hides more faded out, as the key bar's is. The
   count opens a small menu (RowMenu, a sheet on a phone) with Clear all, through the confirm; a new
-  chip scrolls into view at the row's end. With a mouse, the focus goes on to the new chip after a
-  save, and back where it came from after a cancel or delete. They are held per pane, in memory only (lib/chatAnnotations.ts).
+  chip scrolls into view at the row's end. With a mouse or keyboard, once the editor closes (a save,
+  an edit, a delete or a cancel) the focus goes to the composer's message box with the caret at its
+  end, to go on typing the message; on touch nothing takes the focus, so the on-screen keyboard does
+  not rise after the sheet closes. An X pressed from the keyboard moves the focus to the next X (the
+  one before at the end), and to the message box once the last is gone. They are held per pane, in memory only (lib/chatAnnotations.ts).
 - The composer's Send carries them, as an attachment: the typed text first, then the annotations'
   Markdown block in Plannotator's feedback shape (`# Message Feedback`, "I've reviewed this
   conversation and have N piece(s) of feedback:", one `## N. (agent message|your message, HH:MM)

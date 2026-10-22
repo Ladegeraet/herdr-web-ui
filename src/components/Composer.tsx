@@ -61,6 +61,7 @@ import { modelLabel } from "../lib/modelName.ts";
 import { useFacesArrived } from "../lib/fontFaces.ts";
 import { activeTrigger, applyCompletion, type ActiveTrigger } from "../lib/mentions.ts";
 import { resolveComposerMenuActiveItemId } from "../lib/composerMenuHighlight.ts";
+import { enterSubmits } from "../lib/enterSubmits.ts";
 import { quickReplyButtons, useSettings } from "../lib/settings.ts";
 import { composerUsage, formatPercent, formatResetIn, HIGH_PERCENT, meterPercent, meterText, providerForAgent, statusWindows, usageName, useUsage, windowLabel } from "../lib/usage.ts";
 import { AgentMark } from "./AgentMark.tsx";
@@ -1030,9 +1031,7 @@ export function Composer({
         setTextAndCaret(offered, offered.length);
         return;
       }
-      const shouldSend = event.key === "Enter" && (settings.enterSends
-        ? !event.shiftKey && !event.metaKey && !event.ctrlKey
-        : (event.metaKey || event.ctrlKey) && !event.shiftKey);
+      const shouldSend = enterSubmits(event.nativeEvent, settings.enterSends);
       // a typed pick waits in the card above: the empty box's Enter is its Confirm and Escape its
       // Cancel, so the keyboard alone answers, as it does in the agent's own menu. A held Enter's
       // repeats confirm nothing: its first press was the pick
@@ -1139,7 +1138,7 @@ export function Composer({
     <div className={`composer${notices ? " has-notices" : ""}`} role="group" aria-label={t("Message composer")} data-dictating={dictation.voice.state !== "idle" ? "" : undefined} inert={inert || undefined}>
       {greeting}
       {notices}
-      <ChatAnnotationChips storeKey={annotationKey} />
+      <ChatAnnotationChips storeKey={annotationKey} messageBox={textareaRef} />
       {/* no Tab key on a phone: the suggestion can be a chip there that fills the box, when Settings asks for it */}
       {settings.suggestionChip && offered !== null && text === "" && (
         <div className="composer-quick composer-suggestion-row">
