@@ -1,0 +1,101 @@
+/* The comments a sent message carried, under its words in the bubble (ChatFeedbackCards.tsx): small
+   attachment cards in the composer chips' register, not the Markdown the agent reads. */
+
+.chat-feedback {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+}
+
+/* under typed words, a gap; a message that is only comments has none above */
+.chat-bubble-body + .chat-feedback,
+.chat-bubble-foot + .chat-feedback {
+  margin-top: var(--space-2);
+}
+
+.chat-feedback-summary {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--chip-h);
+  margin-left: calc(-1 * var(--space-1));
+  padding: 0 var(--space-1);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  cursor: pointer;
+}
+
+.chat-feedback-summary:hover {
+  background: var(--bg-hover);
+  color: var(--text-strong);
+}
+
+.chat-feedback-summary svg {
+  width: 14px;
+  height: 14px;
+}
+
+.chat-feedback-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* one comment: the accent rail of a chip's icon, the quote, then the comment */
+.chat-feedback-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: var(--hairline) solid var(--border);
+  border-left: var(--rail-w) solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+}
+
+.chat-feedback-meta {
+  color: var(--text-dim);
+  font-size: var(--fs-2xs);
+}
+
+/* the passage, muted on two lines at most; a tap goes to it */
+.chat-feedback-quote {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.chat-feedback-quote:hover {
+  color: var(--text-strong);
+}
+
+.chat-feedback-comment {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: var(--chat-fs-body);
+  line-height: var(--lh-prose);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
