@@ -196,3 +196,27 @@ export function findQuote(pieces: readonly TextPiece[], quote: string): TextSpan
   const match = resolvePassage(flattenText(pieces), quote);
   return match === "ambiguous" ? null : match;
 }
+
+/** Words to find a quote by: no whitespace, no Markdown marks (the chat draws neither). */
+export const looseWords = (text: string): string => text.replace(/[\s*_~`#>|[\]()\\]+/g, "");
+
+// at a line's start: blockquote marks, then a list item's marker and task box, or a heading's hashes
+const LINE_MARKS = /^[ \t]*(?:>[ \t]?)*[ \t]*(?:(?:[-+*]|\d{1,9}[.)])[ \t]+(?:\[[ xX]\][ \t]+)?|#{1,6}(?:[ \t]+|$))?/;
+// a table's separator row, a code fence's line
+const SYNTAX_LINE = /^[ \t]*(?:\|?[ \t]*:?-{3,}:?[ \t]*(?:\|[ \t]*:?-{3,}:?[ \t]*)*\|?|`{3,}.*|~{3,}.*)[ \t]*$/;
+
+/**
+ * A message's Markdown as `looseWords` of the text the chat draws from it: a list item's marker, a
+ * heading's hashes, blockquote marks, a table's pipes and separator row, fence lines and link
+ * targets left out. So a quote selected across two list items or table cells, whose text holds
+ * none of them, is found in the turn it came from.
+ */
+export function markdownLooseWords(markdown: string): string {
+  return looseWords(markdown
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .filter((line) => !SYNTAX_LINE.test(line))
+    .map((line) => line.replace(LINE_MARKS, ""))
+    .join("\n")
+    .replace(/!?\[([^\]\n]*)\]\([^)\n]*\)/g, "$1"));
+}
