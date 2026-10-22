@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { addAnnotation, clearAnnotations, composeWithAnnotations, formatAnnotationsMarkdown, getAnnotations, getSentAnnotations, markAnnotationsSent, removeAnnotation, subscribeAnnotations, updateAnnotation, type ChatAnnotation } from "./chatAnnotations.ts";
+import { addAnnotation, annotationChipLabel, clearAnnotations, composeWithAnnotations, formatAnnotationsMarkdown, getAnnotations, getSentAnnotations, markAnnotationsSent, planAnnotatedSend, removeAnnotation, subscribeAnnotations, updateAnnotation, type ChatAnnotation } from "./chatAnnotations.ts";
 
 let keys = 0;
 /** A conversation no other test touches: the store is shared by the whole module. */
@@ -69,6 +69,61 @@ describe("composeWithAnnotations", () => {
 
   it("leaves the text as it is without annotations", () => {
     expect(composeWithAnnotations("  as typed ", [])).toBe("  as typed ");
+  });
+});
+
+describe("annotationChipLabel", () => {
+  it("shows the comment on one line, or the quote without one", () => {
+    expect(annotationChipLabel({ comment: "  why\nthis? ", quote: "q" })).toBe("why this?");
+    expect(annotationChipLabel({ comment: " ", quote: "the\tquoted  text" })).toBe("the quoted text");
+  });
+
+  it("cuts a long one at the limit", () => {
+    const label = annotationChipLabel({ comment: "a".repeat(100), quote: "" });
+    expect(label).toHaveLength(64);
+    expect(label.endsWith("…")).toBe(true);
+    expect(annotationChipLabel({ comment: "b".repeat(64), quote: "" })).toBe("b".repeat(64));
+  });
+});
+
+describe("planAnnotatedSend", () => {
+  const list = [annotation({ id: "a", createdAt: 1 }), annotation({ id: "b", createdAt: 2 })];
+  const now = { immediate: true, answering: false, max: 10_000 };
+
+  it("sends the text as typed without annotations", () => {
+    expect(planAnnotatedSend(" hi ", [], { ...now, answering: true })).toEqual({ kind: "send", message: " hi ", sentIds: [], heldBack: false });
+  });
+
+  it("appends the annotations to a message sent at once, and names them to mark sent", () => {
+    expect(planAnnotatedSend("overall", list, now)).toEqual({ kind: "send", message: composeWithAnnotations("overall", list), sentIds: ["a", "b"], heldBack: false });
+    expect(planAnnotatedSend("  ", list, now)).toEqual({ kind: "send", message: formatAnnotationsMarkdown(list), sentIds: ["a", "b"], heldBack: false });
+  });
+
+  it("holds them back from a queued message or an answer, and refuses one with nothing else in it", () => {
+    expect(planAnnotatedSend("later", list, { ...now, immediate: false })).toEqual({ kind: "send", message: "later", sentIds: [], heldBack: true });
+    expect(planAnnotatedSend("2", list, { ...now, answering: true })).toEqual({ kind: "send", message: "2", sentIds: [], heldBack: true });
+    expect(planAnnotatedSend("", list, { ...now, immediate: false })).toEqual({ kind: "refuse", reason: "queued" });
+    expect(planAnnotatedSend(" ", list, { ...now, immediate: false, answering: true })).toEqual({ kind: "refuse", reason: "question" });
+  });
+
+  it("refuses a message the annotations make too long", () => {
+    const block = formatAnnotationsMarkdown(list);
+    expect(planAnnotatedSend("", list, { ...now, max: block.length })).toMatchObject({ kind: "send" });
+    expect(planAnnotatedSend("x", list, { ...now, max: block.length })).toEqual({ kind: "refuse", reason: "too-long" });
+  });
+
+  it("clears only what went, and only once it went", () => {
+    const key = freshKey();
+    const first = addAnnotation(key, { source: "agent", quote: "q1", comment: "c1" });
+    const plan = planAnnotatedSend("go", getAnnotations(key), now);
+    // added while the message was on its way: not in it
+    const during = addAnnotation(key, { source: "user", quote: "q2", comment: "c2" });
+    // a refused or queued send marks nothing: the annotations stay
+    expect(getAnnotations(key)).toEqual([first, during]);
+    if (plan.kind !== "send") throw new Error("expected a send");
+    markAnnotationsSent(key, plan.sentIds);
+    expect(getAnnotations(key)).toEqual([during]);
+    expect(getSentAnnotations(key)).toEqual([first]);
   });
 });
 

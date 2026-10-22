@@ -10,20 +10,20 @@
  *   phone (`SHEET_QUERY`). What was selected is read when Comment is pressed, since focusing the
  *   comment's field collapses the selection.
  *   `AnnotationEditDialog` opens the same editor on a saved annotation, to change or delete it.
- * - `ChatAnnotationsBar`, over the composer: the count, and a dialog to look through, remove, clear,
- *   insert into the message draft or send them.
+ * - `ChatAnnotationChips`, over the composer's card: one chip per comment, as an attachment, to edit
+ *   or remove; past three they fold into one. The composer's own Send carries them (Composer.tsx).
  */
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
-import { MessageSquarePlus, MessageSquareText, Trash2, X } from "lucide-react";
+import { ChevronDown, ChevronUp, MessageSquarePlus, MessageSquareText, Trash2, X } from "lucide-react";
 
 import "./ChatAnnotations.css";
 
-import { addAnnotation, clearAnnotations, formatAnnotationsMarkdown, removeAnnotation, updateAnnotation, useChatAnnotations, type ChatAnnotation, type ChatAnnotationSource } from "../lib/chatAnnotations.ts";
+import { addAnnotation, annotationChipLabel, clearAnnotations, removeAnnotation, updateAnnotation, useChatAnnotations, type ChatAnnotation, type ChatAnnotationSource } from "../lib/chatAnnotations.ts";
 import { annotationContext, annotationSource, boxesMeet, popoverPlace, triggerPlace, type Box } from "../lib/chatSelection.ts";
 import { useT } from "../lib/i18n.ts";
 import { SHEET_QUERY, useSheetSwipe } from "../lib/sheets.ts";
-import { usePhoneSheetBack, useSheetHistory } from "../lib/sheetHistory.ts";
+import { useSheetHistory } from "../lib/sheetHistory.ts";
 import { quotedText } from "../lib/terminalQuote.ts";
 import { useFocusTrap } from "../lib/useFocusTrap.ts";
 import { useMediaQuery } from "../lib/useMediaQuery.ts";
@@ -134,6 +134,20 @@ export function ChatAnnotator({ root, storeKey }: { root: HTMLElement | null; st
     } else setPlace(triggerPlace(selected.end, viewport(), size));
   }, [coarse, root, selected]);
 
+  // with a keyboard, C opens the comment on what is selected, as Comment does
+  useEffect(() => {
+    if (selected === null || editing !== null) return;
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key.toLowerCase() !== "c" || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || event.isComposing || event.repeat) return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return;
+      event.preventDefault();
+      setEditing(selected);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [editing, selected]);
+
   const close = useCallback(() => { setEditing(null); }, []);
   const save = useCallback((comment: string) => {
     if (editing === null) return;
@@ -145,13 +159,14 @@ export function ChatAnnotator({ root, storeKey }: { root: HTMLElement | null; st
 
   return <>
     {selected !== null && editing === null && createPortal(
-      <button ref={trigger} type="button" className={`btn chat-annotate-trigger${coarse ? " is-docked" : ""}`} style={place ?? { visibility: "hidden" }}
+      <button ref={trigger} type="button" aria-keyshortcuts={coarse ? undefined : "C"} className={`btn chat-annotate-trigger${coarse ? " is-docked" : ""}`} style={place ?? { visibility: "hidden" }}
         onPointerDown={() => { pressing.current = true; }}
         onPointerCancel={() => { pressing.current = false; }}
         // the press must not take the focus or the selection from the message
         onMouseDown={(event) => { event.preventDefault(); }}
         onClick={() => { pressing.current = false; setEditing(selected); }}>
         <MessageSquarePlus aria-hidden="true" />{t("Comment")}
+        {!coarse && <kbd className="kbd" aria-hidden="true">C</kbd>}
       </button>,
       document.body,
     )}
@@ -182,9 +197,14 @@ function AnnotationEditor({ title, quote, box, initialComment = "", onSave, onCl
   const field = useRef<HTMLTextAreaElement>(null);
   // only the modal traps Tab; focus never goes back to the composer on touch, which would raise the keyboard
   const surface = useFocusTrap<HTMLDivElement>(modal, { initialFocus: field, shouldRestore: () => !coarse });
-  useSheetSwipe(surface, sheet ? onClose : null);
-  useSheetHistory(sheet, onClose);
   const [comment, setComment] = useState(initialComment);
+  // a comment being written or changed is never thrown away by a stray press or swipe; Escape,
+  // Cancel and Back still discard it
+  const written = comment.trim().length > 0 && comment !== initialComment;
+  const writtenRef = useRef(written);
+  writtenRef.current = written;
+  useSheetSwipe(surface, sheet && !written ? onClose : null);
+  useSheetHistory(sheet, onClose);
   const [place, setPlace] = useState<{ top: number; left: number } | null>(null);
   const empty = comment.trim().length === 0;
 
@@ -197,9 +217,6 @@ function AnnotationEditor({ title, quote, box, initialComment = "", onSave, onCl
   // field inside the hidden, unplaced popover would refuse it)
   const placed = place !== null;
   useEffect(() => { if (!modal && placed) field.current?.focus({ preventScroll: true }); }, [modal, placed]);
-  // read by the outside press: a comment being written or changed is never thrown away by a stray click
-  const written = useRef(false);
-  written.current = comment.trim().length > 0 && comment !== initialComment;
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
@@ -211,7 +228,7 @@ function AnnotationEditor({ title, quote, box, initialComment = "", onSave, onCl
     // the popover is not modal: a press outside it closes it, as a menu's does, unless a comment is
     // written in it; Escape and Cancel still discard one
     const onPointer = (event: PointerEvent): void => {
-      if (!modal && !written.current && !surface.current?.contains(event.target as Node)) onClose();
+      if (!modal && !writtenRef.current && !surface.current?.contains(event.target as Node)) onClose();
     };
     window.addEventListener("keydown", onKey, true);
     window.addEventListener("pointerdown", onPointer, true);
@@ -246,7 +263,7 @@ function AnnotationEditor({ title, quote, box, initialComment = "", onSave, onCl
 
   if (modal) {
     return createPortal(
-      <div className="modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className="modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget && !writtenRef.current) onClose(); }}>
         <div ref={surface} className="modal chat-annotate-editor" role="dialog" aria-modal="true" aria-labelledby={`${id}-title`} tabIndex={-1}>{body}</div>
       </div>,
       document.body,
@@ -267,138 +284,82 @@ export function AnnotationEditDialog({ storeKey, annotation, anchor, onClose }: 
   return <AnnotationEditor title={t("Edit comment")} quote={annotation.quote} box={box} initialComment={annotation.comment} onSave={save} onClose={onClose} onDelete={remove} />;
 }
 
-interface BarProps {
-  storeKey: string;
-  sendDisabled: boolean;
-  /** appends the Markdown to the message draft; a refusal's words, or null once it is there */
-  onInsert: (markdown: string) => string | null;
-  /** sends the Markdown as the user's message: true once it went out, else why not */
-  onSend: (markdown: string) => Promise<true | string>;
-}
+/** Past this many the chips fold into one that says how many, and opens them. */
+const CHIPS_SHOWN = 3;
 
-/** The annotations collected for the composer's pane: a count over the card, and their dialog. */
-export function ChatAnnotationsBar({ storeKey, sendDisabled, onInsert, onSend }: BarProps) {
+/** The comments waiting for the next message, as chips over the composer's card: tap one to edit it, X to remove it. */
+export function ChatAnnotationChips({ storeKey }: { storeKey: string }) {
   const t = useT();
   const annotations = useChatAnnotations(storeKey);
-  const [open, setOpen] = useState(false);
   const coarse = useMediaQuery("(pointer: coarse)");
+  const [expanded, setExpanded] = useState(false);
+  const [editing, setEditing] = useState<{ id: string; anchor: DOMRect | null } | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  // the place of the chip just removed: the focus goes on to the X now there, or the one before
+  const [removedAt, setRemovedAt] = useState<number | null>(null);
   const count = annotations.length;
-  // the composer's message box, kept from while the chip was there: the chip leaves with the last one
+  // the composer's message box, kept from while the chips were there: they leave with the last one
+  const row = useRef<HTMLDivElement | null>(null);
   const messageBox = useRef<HTMLTextAreaElement | null>(null);
   const held = useCallback((node: HTMLDivElement | null) => {
+    row.current = node;
     if (node) messageBox.current = node.closest(".composer")?.querySelector<HTMLTextAreaElement>("textarea") ?? null;
   }, []);
+  // focus that had nowhere left to go goes on to the message box, but never on touch, where that raises the keyboard
+  const refocus = useCallback(() => {
+    const focused = document.activeElement;
+    if (!coarse && (focused === null || focused === document.body)) messageBox.current?.focus({ preventScroll: true });
+  }, [coarse]);
   const before = useRef(count);
-  // the last one removed, inserted, sent or cleared takes the dialog and the chip with it (the next
-  // first one does not reopen it): the focus they held goes on to the message box, but never on
-  // touch, where that raises the keyboard
+  // the last one removed, sent or cleared folds the row again for the next ones
   useEffect(() => {
     const emptied = before.current > 0 && count === 0;
     before.current = count;
     if (!emptied) return;
-    setOpen(false);
-    const focused = document.activeElement;
-    if (!coarse && (focused === null || focused === document.body)) messageBox.current?.focus({ preventScroll: true });
-  }, [coarse, count]);
-  if (count === 0) return null;
-  const label = count === 1 ? t("1 annotation") : t("{n} annotations", { n: count });
-  return <div className="chat-annotations-bar" ref={held}>
-    <button type="button" className="chat-annotations-chip" aria-haspopup="dialog" onClick={() => { setOpen(true); }}>
-      <MessageSquareText aria-hidden="true" />{label}
-    </button>
-    {open && <AnnotationsDialog storeKey={storeKey} sendDisabled={sendDisabled} onInsert={onInsert} onSend={onSend} onClose={() => { setOpen(false); }} />}
-  </div>;
-}
-
-function AnnotationsDialog({ storeKey, sendDisabled, onInsert, onSend, onClose }: BarProps & { onClose: () => void }) {
-  const t = useT();
-  const id = useId();
-  const annotations = useChatAnnotations(storeKey);
-  const [confirming, setConfirming] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const closeButton = useRef<HTMLButtonElement>(null);
-  // the place of the row just removed: the focus goes on to the Remove now there, or the one before
-  const [removedAt, setRemovedAt] = useState<number | null>(null);
-  const mounted = useRef(true);
-  // set again on mount: StrictMode runs the cleanup once in development
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-  const surface = useFocusTrap<HTMLDivElement>(!confirming, { initialFocus: closeButton });
-  useSheetSwipe(surface, sending || confirming ? null : onClose);
-  usePhoneSheetBack(() => { if (sending) return false; onClose(); }, !confirming);
-
-  useEffect(() => {
-    if (confirming) return;
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key !== "Escape") return;
-      event.stopPropagation();
-      event.preventDefault();
-      if (!sending) onClose();
-    };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, [confirming, onClose, sending]);
-
+    setExpanded(false);
+    refocus();
+  }, [count, refocus]);
   useEffect(() => {
     if (removedAt === null) return;
     setRemovedAt(null);
-    const buttons = surface.current?.querySelectorAll<HTMLElement>(".chat-annotations-remove");
-    (buttons?.[removedAt] ?? buttons?.[removedAt - 1] ?? surface.current)?.focus({ preventScroll: true });
-  }, [annotations, removedAt, surface]);
+    const buttons = row.current?.querySelectorAll<HTMLElement>(".chat-annotation-chip-remove");
+    const next = buttons?.[removedAt] ?? buttons?.[removedAt - 1];
+    if (next) next.focus({ preventScroll: true });
+    else refocus();
+  }, [annotations, refocus, removedAt]);
+  const closeEditor = useCallback(() => {
+    const id = editing?.id;
+    setEditing(null);
+    // the popover traps nothing: the focus goes back to its chip, or on to the box once it is gone
+    window.requestAnimationFrame(() => {
+      const focused = document.activeElement;
+      if (coarse || (focused !== null && focused !== document.body)) return;
+      const chip = [...(row.current?.querySelectorAll<HTMLElement>(".chat-annotation-chip-open") ?? [])].find((node) => node.dataset.annotation === id);
+      if (chip) chip.focus({ preventScroll: true });
+      else refocus();
+    });
+  }, [coarse, editing, refocus]);
 
-  const markdown = formatAnnotationsMarkdown(annotations);
-  const insert = (): void => {
-    const refused = onInsert(markdown);
-    if (refused !== null) { setError(refused); return; }
-    clearAnnotations(storeKey);
-    onClose();
-  };
-  const send = (): void => {
-    setSending(true);
-    setError(null);
-    void onSend(markdown).then((result) => {
-      if (result === true) { clearAnnotations(storeKey); if (mounted.current) onClose(); return; }
-      if (mounted.current) setError(result);
-    }).finally(() => { if (mounted.current) setSending(false); });
-  };
-
-  if (confirming) {
-    return <ConfirmDialog title={t("Clear all annotations?")} body={t("Every comment collected for this chat is removed.")} confirmLabel={t("Clear all")}
-      onConfirm={async () => { clearAnnotations(storeKey); onClose(); }} onClose={() => { setConfirming(false); }} />;
-  }
-
-  return createPortal(
-    <div className="modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget && !sending) onClose(); }}>
-      <div ref={surface} className="modal chat-annotations-dialog" role="dialog" aria-modal="true" aria-labelledby={`${id}-title`} tabIndex={-1}>
-        <header className="modal-header">
-          <h2 className="modal-title" id={`${id}-title`}>{t("Annotations")}</h2>
-          <button ref={closeButton} type="button" className="icon-button" aria-label={t("Close")} title={t("Close")} disabled={sending} onClick={onClose}><X aria-hidden="true" /></button>
-        </header>
-        <div className="modal-body">
-          <ol className="chat-annotations-list">
-            {annotations.map((annotation, index) => <li key={annotation.id} className="chat-annotations-item">
-              <div className="chat-annotations-item-head">
-                <span className="chat-annotations-item-source">
-                  {t(annotation.source === "agent" ? "On agent message" : "On your message")}
-                  {annotation.context && <> · {annotation.context}</>}
-                </span>
-                <button type="button" className="icon-button chat-annotations-remove" aria-label={t("Remove annotation {n}", { n: index + 1 })} title={t("Remove annotation {n}", { n: index + 1 })} disabled={sending}
-                  onClick={() => { removeAnnotation(storeKey, annotation.id); setRemovedAt(index); }}><Trash2 aria-hidden="true" /></button>
-              </div>
-              <blockquote className="chat-annotate-quote">{annotation.quote}</blockquote>
-              <p className="chat-annotations-item-comment">{annotation.comment}</p>
-            </li>)}
-          </ol>
-          {/* a refusal's own way on (Send anyway, clearing the box) is the composer's: the way there is Insert */}
-          {error !== null && <p className="chat-annotations-error" role="alert">{error} {t("Use Insert into message to send them from the message box instead.")}</p>}
-        </div>
-        <footer className="modal-footer chat-annotations-footer">
-          <button type="button" className="btn btn-ghost chat-annotations-clear" disabled={sending} onClick={() => { setConfirming(true); }}>{t("Clear all")}</button>
-          <button type="button" className="btn" disabled={sending} onClick={insert}>{t("Insert into message")}</button>
-          <button type="button" className="btn btn-primary" disabled={sending || sendDisabled} onClick={send}>{t("Send")}</button>
-        </footer>
-      </div>
-    </div>,
-    document.body,
-  );
+  if (count === 0) return null;
+  const many = count > CHIPS_SHOWN;
+  const shown = !many || expanded;
+  const annotation = editing === null ? undefined : annotations.find((item) => item.id === editing.id);
+  return <div className="chat-annotations-bar" ref={held} role="group" aria-label={t("Comments for the next message")}>
+    {many && <button type="button" className="chat-annotations-chip chat-annotations-summary" aria-expanded={expanded} onClick={() => { setExpanded((open) => !open); }}>
+      <MessageSquareText aria-hidden="true" />{t("{n} comments", { n: count })}
+      {expanded ? <ChevronDown aria-hidden="true" /> : <ChevronUp aria-hidden="true" />}
+    </button>}
+    {many && <button type="button" className="btn btn-ghost chat-annotations-clear" onClick={() => { setConfirming(true); }}>{t("Clear all")}</button>}
+    {shown && annotations.map((item, index) => <span key={item.id} className="chat-annotations-chip chat-annotation-chip">
+      <button type="button" className="chat-annotation-chip-open" data-annotation={item.id} aria-haspopup="dialog" title={item.comment}
+        onClick={(event) => { setEditing({ id: item.id, anchor: event.currentTarget.getBoundingClientRect() }); }}>
+        <MessageSquareText aria-hidden="true" /><span className="chat-annotation-chip-text">{annotationChipLabel(item)}</span>
+      </button>
+      <button type="button" className="chat-annotation-chip-remove" aria-label={t("Remove comment {n}", { n: index + 1 })} title={t("Remove comment {n}", { n: index + 1 })}
+        onClick={() => { removeAnnotation(storeKey, item.id); setRemovedAt(index); }}><X aria-hidden="true" /></button>
+    </span>)}
+    {annotation !== undefined && editing !== null && <AnnotationEditDialog storeKey={storeKey} annotation={annotation} anchor={editing.anchor} onClose={closeEditor} />}
+    {confirming && <ConfirmDialog title={t("Clear all comments?")} body={t("Every comment collected for this chat is removed.")} confirmLabel={t("Clear all")}
+      onConfirm={async () => { clearAnnotations(storeKey); setConfirming(false); }} onClose={() => { setConfirming(false); }} />}
+  </div>;
 }

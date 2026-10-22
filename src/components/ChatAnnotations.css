@@ -85,10 +85,14 @@
   line-height: 1.45;
 }
 
-/* the collection: one chip inside the composer, over the card (a row of its own, not a notice) */
+/* the comments for the next message: chips inside the composer, over the card, as attachments are
+   (a row of its own, not a notice) */
 .chat-annotations-bar {
   flex: none;
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
   /* the card's column, as the composer's notices take it (Composer.css) */
   width: min(100%, var(--chat-w));
   margin: 0 auto var(--space-2);
@@ -98,6 +102,8 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
+  max-width: 100%;
+  min-width: 0;
   min-height: var(--control-h);
   padding: 0 var(--space-3);
   /* opaque, as the card under it: on a phone the composer floats over the transcript's end */
@@ -108,76 +114,83 @@
   color: var(--text-strong);
   font: inherit;
   font-size: var(--fs-sm);
+}
+
+button.chat-annotations-chip {
   cursor: pointer;
 }
 
 .chat-annotations-chip svg {
+  flex: none;
   width: 16px;
   height: 16px;
   color: var(--accent);
+}
+
+/* one comment: its words open it, the X removes it */
+.chat-annotation-chip {
+  padding: 0 0 0 var(--space-3);
+}
+
+.chat-annotation-chip-open,
+.chat-annotation-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  min-height: inherit;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.chat-annotation-chip-open {
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.chat-annotation-chip-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-annotation-chip-remove {
+  flex: none;
+  justify-content: center;
+  width: var(--control-h);
+  border-radius: var(--radius-pill);
+  color: var(--text-dim);
+}
+
+.chat-annotation-chip-remove:hover {
+  color: var(--text-strong);
+}
+
+.chat-annotation-chip-remove svg {
+  color: inherit;
+}
+
+.chat-annotations-clear {
+  font-size: var(--fs-sm);
 }
 
 @media (pointer: coarse) {
   .chat-annotations-chip {
     min-height: var(--touch-target);
   }
+
+  .chat-annotation-chip-remove {
+    width: var(--touch-target);
+  }
 }
 
-.chat-annotations-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.chat-annotations-item {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding-bottom: var(--space-3);
-  border-bottom: var(--hairline) solid var(--border);
-}
-
-.chat-annotations-item:last-child {
-  padding-bottom: 0;
-  border-bottom: 0;
-}
-
-.chat-annotations-item-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-
-.chat-annotations-item-source {
-  color: var(--text-dim);
-  font-size: var(--fs-xs);
-}
-
-.chat-annotations-item-comment {
-  margin: 0;
-  color: var(--text-strong);
-  font-size: var(--fs-sm);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.chat-annotations-error {
-  margin: var(--space-3) 0 0;
-  color: var(--danger-text);
-  font-size: var(--fs-sm);
-}
-
-/* Clear all stands apart, on the left; insert and send on the right */
-.chat-annotations-clear {
+/* an annotation already saved offers Delete, apart from Cancel and Save */
+.chat-annotate-delete {
   margin-right: auto;
 }
 
-@media (max-width: 640px) {
-  .chat-annotations-footer {
-    flex-wrap: wrap;
-  }
+.chat-annotate-trigger .kbd {
+  margin-left: var(--space-1);
 }
