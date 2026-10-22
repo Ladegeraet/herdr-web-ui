@@ -31,6 +31,13 @@ describe("formatAnnotationsMarkdown", () => {
     expect(formatAnnotationsMarkdown([annotation({ context: "  " })])).toStartWith("## Annotation 1\n**On agent message**\n");
   });
 
+  it("leaves out the comment of a passage only flagged", () => {
+    expect(formatAnnotationsMarkdown([annotation({ quote: "flagged", comment: " \n " }), annotation({ quote: "next", createdAt: 2 })])).toBe(
+      "## Annotation 1\n**On agent message**\n\nComment on:\n> flagged\n\n"
+      + "## Annotation 2\n**On agent message**\n\nComment on:\n> next\n\nUser comment:\n> noted",
+    );
+  });
+
   it("quotes every line of a multi-line quote and comment", () => {
     expect(formatAnnotationsMarkdown([annotation({ quote: "one\ntwo\n\nfour", comment: "first\nsecond" })])).toBe(
       "## Annotation 1\n**On agent message**\n\nComment on:\n> one\n> two\n>\n> four\n\nUser comment:\n> first\n> second",
