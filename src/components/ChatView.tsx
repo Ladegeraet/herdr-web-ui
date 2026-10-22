@@ -19,6 +19,7 @@ import { PromptCard } from "./PromptCard.tsx";
 import { RenderBoundary } from "./RenderBoundary.tsx";
 import { loadChatTimeline, loadedChatTimeline, useChatTimeline } from "./chatTimelineLoader.ts";
 import { ChatMinimap } from "./ChatMinimap.tsx";
+import { ChatAnnotationMarks } from "./ChatAnnotationMarks.tsx";
 import { ChatAnnotator } from "./ChatAnnotations.tsx";
 import { minimapTurns } from "../lib/chatMinimap.ts";
 import type { LegendListRef } from "@legendapp/list/react";
@@ -2348,6 +2349,7 @@ export const ChatView = memo(function ChatView({ paneId, presentationKey, finish
       onPendingAnswerDone?.(paneId, prompt.id);
     }} />, promptDock)}
   <ChatAnnotator root={annotateRoot} storeKey={paneStorageId(machineId, paneId)} />
+  <ChatAnnotationMarks root={annotateRoot} storeKey={paneStorageId(machineId, paneId)} />
   {viewer !== null && <ImageLightbox images={viewer.images} index={viewer.index} onClose={closeViewer} />}
   </ToolPathRootContext.Provider></ImageViewerContext.Provider></ChatHistoryContext.Provider></ChatPaneContext.Provider></ChatMarkdownImages>;
 });
