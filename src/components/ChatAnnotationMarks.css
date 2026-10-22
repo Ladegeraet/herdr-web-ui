@@ -10,7 +10,7 @@
 }
 
 ::highlight(chat-annotation-sent) {
-  background-color: color-mix(in srgb, var(--accent) 11%, transparent);
+  background-color: color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
 /* a passage a sent feedback card jumped to, lit for a moment */
