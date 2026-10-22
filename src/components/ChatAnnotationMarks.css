@@ -1,22 +1,21 @@
 /* The passages annotations were made on (ChatAnnotationMarks.tsx). A highlight takes colors and
-   text decoration only. */
+   text decoration only. The tints are mixed from the accent, strong enough to read over inline
+   code's own background in every theme. */
 
 ::highlight(chat-annotation-pending) {
-  background-color: var(--accent-tint);
-  text-decoration: underline dotted var(--accent);
+  background-color: color-mix(in srgb, var(--accent) 28%, transparent);
+  text-decoration: underline solid var(--accent);
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
 }
 
 ::highlight(chat-annotation-sent) {
-  text-decoration: underline dotted var(--text-dim);
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
+  background-color: color-mix(in srgb, var(--accent) 11%, transparent);
 }
 
 /* a passage a sent feedback card jumped to, lit for a moment */
 ::highlight(chat-annotation-flash) {
-  background-color: var(--accent-tint);
+  background-color: color-mix(in srgb, var(--accent) 40%, transparent);
   text-decoration: underline solid var(--accent);
   text-decoration-thickness: 2px;
   text-underline-offset: 3px;
