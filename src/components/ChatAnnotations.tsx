@@ -14,7 +14,7 @@
  *   or remove, in one row that scrolls sideways after a count that holds Clear all. The composer's
  *   own Send carries them (Composer.tsx).
  */
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { MessageSquarePlus, MessageSquareText, Trash2, X } from "lucide-react";
 
@@ -22,7 +22,9 @@ import "./ChatAnnotations.css";
 
 import { addAnnotation, annotationChipLabel, clearAnnotations, removeAnnotation, updateAnnotation, useChatAnnotations, type ChatAnnotation, type ChatAnnotationSource } from "../lib/chatAnnotations.ts";
 import { annotationContext, annotationSource, boxesMeet, popoverPlace, triggerPlace, type Box } from "../lib/chatSelection.ts";
+import { enterSubmits, enterSubmitShortcut } from "../lib/enterSubmits.ts";
 import { useT } from "../lib/i18n.ts";
+import { useSettings } from "../lib/settings.ts";
 import { SHEET_QUERY, useSheetSwipe } from "../lib/sheets.ts";
 import { useSheetHistory } from "../lib/sheetHistory.ts";
 import { quotedText } from "../lib/terminalQuote.ts";
@@ -53,6 +55,8 @@ function readSelection(root: HTMLElement): Selected | null {
   const start = elementOf(range.startContainer)?.closest<HTMLElement>("[data-annotate]");
   const end = elementOf(range.endContainer)?.closest<HTMLElement>("[data-annotate]");
   if (!start || start !== end || !root.contains(start)) return null;
+  // the comments a sent message carries (ChatFeedbackCards) are not its words
+  if (elementOf(range.startContainer)?.closest(".chat-feedback") || elementOf(range.endContainer)?.closest(".chat-feedback")) return null;
   // a field's text, a button's name: not the message's words
   if (elementOf(range.commonAncestorContainer)?.closest("input, textarea, button, [contenteditable]")) return null;
   const source = annotationSource(start.dataset.annotate);
@@ -144,7 +148,6 @@ export function ChatAnnotator({ root, storeKey }: { root: HTMLElement | null; st
       const target = event.target instanceof Element ? event.target : null;
       if (target?.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return;
       event.preventDefault();
-      saved.current = null;
       setEditing(selected);
     };
     window.addEventListener("keydown", onKey);
@@ -152,12 +155,11 @@ export function ChatAnnotator({ root, storeKey }: { root: HTMLElement | null; st
   }, [editing, selected]);
 
   const close = useCallback(() => { setEditing(null); }, []);
-  // the comment just saved: the focus goes on to its chip once the popover is gone
-  const saved = useRef<string | null>(null);
-  const focusSaved = useCallback(() => saved.current !== null && focusAnnotationChip(saved.current), []);
+  // saved or not, the focus goes on to the message box once the editor is gone
+  const focusComposer = useCallback(() => focusMessageBox(storeKey), [storeKey]);
   const save = useCallback((comment: string) => {
     if (editing === null) return;
-    saved.current = addAnnotation(storeKey, { source: editing.source, quote: editing.quote, comment, context: editing.context, turnTs: editing.turnTs }).id;
+    addAnnotation(storeKey, { source: editing.source, quote: editing.quote, comment, context: editing.context, turnTs: editing.turnTs }).id;
     setEditing(null);
     setSelected(null);
     document.getSelection()?.removeAllRanges();
@@ -170,13 +172,13 @@ export function ChatAnnotator({ root, storeKey }: { root: HTMLElement | null; st
         onPointerCancel={() => { pressing.current = false; }}
         // the press must not take the focus or the selection from the message
         onMouseDown={(event) => { event.preventDefault(); }}
-        onClick={() => { pressing.current = false; saved.current = null; setEditing(selected); }}>
+        onClick={() => { pressing.current = false; setEditing(selected); }}>
         <MessageSquarePlus aria-hidden="true" />{t("Comment")}
         {!coarse && <kbd className="kbd" aria-hidden="true">C</kbd>}
       </button>,
       document.body,
     )}
-    {editing !== null && <AnnotationEditor title={t("Comment on selection")} quote={editing.quote} box={editing.box} onSave={save} onClose={close} focusAfter={focusSaved} />}
+    {editing !== null && <AnnotationEditor title={t("Comment on selection")} quote={editing.quote} box={editing.box} onSave={save} onClose={close} focusAfter={focusComposer} />}
   </>;
 }
 
@@ -190,30 +192,35 @@ interface EditorProps {
   onClose: () => void;
   /** offered only for an annotation already saved */
   onDelete?: () => void;
-  /** where the popover's focus goes once it is gone, before back to where it came from: true once it went */
+  /** where the focus goes once the editor is gone (not on touch), before back to where it came from: true once it went */
   focusAfter?: () => boolean;
 }
 
-/** The comment just saved, as its chip over the composer: false without one. */
-function focusAnnotationChip(id: string): boolean {
-  const chip = [...document.querySelectorAll<HTMLElement>(".chat-annotation-chip-open")].find((node) => node.dataset.annotation === id);
-  // the row scrolls it into view; the page around it stays where it is
-  chip?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  chip?.focus({ preventScroll: true });
-  return chip !== undefined;
+/** Each pane's message box, by its annotations' store key: the chips register the composer's (Composer.tsx). */
+const messageBoxes = new Map<string, RefObject<HTMLTextAreaElement | null>>();
+
+/** The message box of `storeKey`'s composer, focused with the caret at the end of its text: false without one. */
+function focusMessageBox(storeKey: string): boolean {
+  const box = messageBoxes.get(storeKey)?.current;
+  if (!box?.isConnected) return false;
+  box.focus({ preventScroll: true });
+  box.setSelectionRange(box.value.length, box.value.length);
+  return true;
 }
 
 function AnnotationEditor({ title, quote, box, initialComment = "", onSave, onClose, onDelete, focusAfter }: EditorProps) {
   const t = useT();
   const id = useId();
+  const { settings } = useSettings();
   const sheet = useMediaQuery(SHEET_QUERY);
   // a touch screen gets the modal (a sheet on a phone, a dialog on a tablet): a popover under the
   // selection would sit behind the on-screen keyboard, which iOS leaves out of innerHeight
   const coarse = useMediaQuery("(pointer: coarse)");
   const modal = sheet || coarse || box === null;
   const field = useRef<HTMLTextAreaElement>(null);
-  // only the modal traps Tab; focus never goes back to the composer on touch, which would raise the keyboard
-  const surface = useFocusTrap<HTMLDivElement>(modal, { initialFocus: field, shouldRestore: () => !coarse });
+  // only the modal traps Tab. Its focus goes on as the popover's does (`focusAfter`), and never
+  // back to the composer on touch, which would raise the keyboard
+  const surface = useFocusTrap<HTMLDivElement>(modal, { initialFocus: field, shouldRestore: () => !coarse && focusAfter === undefined });
   const [comment, setComment] = useState(initialComment);
   // a comment being written or changed is never thrown away by a stray press or swipe; Escape,
   // Cancel and Back still discard it
@@ -228,7 +235,7 @@ function AnnotationEditor({ title, quote, box, initialComment = "", onSave, onCl
     const node = field.current;
     if (node !== null) node.setSelectionRange(node.value.length, node.value.length);
   }, []);
-  // the popover traps nothing: once it is gone, its focus goes on (`focusAfter`) or back where it
+  // once the editor is gone its focus goes on (`focusAfter`) or, for the popover, back where it
   // came from, never left on the page's body. A touch screen keeps none, which would raise the keyboard
   const opener = useRef<Element | null>(null);
   const after = useRef({ modal, coarse, focusAfter });
@@ -237,12 +244,12 @@ function AnnotationEditor({ title, quote, box, initialComment = "", onSave, onCl
     opener.current = document.activeElement;
     return () => {
       const { modal: wasModal, coarse: touch, focusAfter: next } = after.current;
-      if (wasModal || touch) return;
+      if (touch || (wasModal && next === undefined)) return;
       const from = opener.current;
       window.requestAnimationFrame(() => {
         const focused = document.activeElement;
         if (focused !== null && focused !== document.body) return;
-        if (next?.() === true) return;
+        if (next?.() === true || wasModal) return;
         if (from instanceof HTMLElement && from !== document.body && from.isConnected) from.focus({ preventScroll: true });
       });
     };
@@ -283,8 +290,9 @@ function AnnotationEditor({ title, quote, box, initialComment = "", onSave, onCl
     };
   }, [modal, onClose, surface]);
 
+  // Enter or Cmd/Ctrl+Enter saves, as the composer's sends: by the "Enter sends" setting
   const onFieldKey = (event: ReactKeyboardEvent<HTMLTextAreaElement>): void => {
-    if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey) || event.nativeEvent.isComposing) return;
+    if (!enterSubmits(event.nativeEvent, settings.enterSends)) return;
     event.preventDefault();
     onSave(comment.trim());
   };
@@ -295,6 +303,7 @@ function AnnotationEditor({ title, quote, box, initialComment = "", onSave, onCl
       <blockquote className="chat-annotate-quote">{quote}</blockquote>
       <label className="visually-hidden" htmlFor={`${id}-comment`}>{t("Your comment")}</label>
       <textarea ref={field} id={`${id}-comment`} className="input chat-annotate-field" rows={3} value={comment}
+        aria-keyshortcuts={enterSubmitShortcut(settings.enterSends)}
         placeholder={t("What should the agent know about this?")}
         spellCheck autoCapitalize="sentences" autoCorrect="on"
         onChange={(event) => { setComment(event.target.value); }} onKeyDown={onFieldKey} />
@@ -302,7 +311,7 @@ function AnnotationEditor({ title, quote, box, initialComment = "", onSave, onCl
     <footer className="modal-footer">
       {onDelete && <button type="button" className="btn btn-ghost chat-annotate-delete" onClick={onDelete}><Trash2 aria-hidden="true" />{t("Delete")}</button>}
       <button type="button" className="btn" onClick={onClose}>{t("Cancel")}</button>
-      <button type="button" className="btn btn-primary" onClick={() => { onSave(comment.trim()); }}>{t("Save")}</button>
+      <button type="button" className="btn btn-primary" aria-keyshortcuts={enterSubmitShortcut(settings.enterSends)} onClick={() => { onSave(comment.trim()); }}>{t("Save")}</button>
     </footer>
   </>;
 
@@ -321,18 +330,18 @@ function AnnotationEditor({ title, quote, box, initialComment = "", onSave, onCl
 }
 
 /** The editor for a saved annotation: change its comment or delete it. `anchor` places the popover. */
-export function AnnotationEditDialog({ storeKey, annotation, anchor, onClose }: { storeKey: string; annotation: ChatAnnotation; anchor: DOMRect | null; onClose: () => void }) {
+export function AnnotationEditDialog({ storeKey, annotation, anchor, onClose, focusAfter }: { storeKey: string; annotation: ChatAnnotation; anchor: DOMRect | null; onClose: () => void; focusAfter?: () => boolean }) {
   const t = useT();
   const box = useMemo(() => (anchor === null ? null : boxOf(anchor)), [anchor]);
   const save = useCallback((comment: string) => { updateAnnotation(storeKey, annotation.id, { comment }); onClose(); }, [annotation.id, onClose, storeKey]);
   const remove = useCallback(() => { removeAnnotation(storeKey, annotation.id); onClose(); }, [annotation.id, onClose, storeKey]);
-  return <AnnotationEditor title={t("Edit comment")} quote={annotation.quote} box={box} initialComment={annotation.comment} onSave={save} onClose={onClose} onDelete={remove} />;
+  return <AnnotationEditor title={t("Edit comment")} quote={annotation.quote} box={box} initialComment={annotation.comment} onSave={save} onClose={onClose} onDelete={remove} focusAfter={focusAfter} />;
 }
 
 /** The comments waiting for the next message, as one row of chips over the composer's card: tap one
  * to edit it, X to remove it. However many there are the row stays one line high and scrolls
  * sideways; the count before it stays put and holds Clear all. */
-export function ChatAnnotationChips({ storeKey }: { storeKey: string }) {
+export function ChatAnnotationChips({ storeKey, messageBox }: { storeKey: string; messageBox: RefObject<HTMLTextAreaElement | null> }) {
   const t = useT();
   const annotations = useChatAnnotations(storeKey);
   const coarse = useMediaQuery("(pointer: coarse)");
@@ -342,13 +351,12 @@ export function ChatAnnotationChips({ storeKey }: { storeKey: string }) {
   // the place of the chip just removed: the focus goes on to the X now there, or the one before
   const [removedAt, setRemovedAt] = useState<number | null>(null);
   const count = annotations.length;
-  // the composer's message box, kept from while the chips were there: they leave with the last one
   const row = useRef<HTMLDivElement | null>(null);
-  const messageBox = useRef<HTMLTextAreaElement | null>(null);
-  const held = useCallback((node: HTMLDivElement | null) => {
-    row.current = node;
-    if (node) messageBox.current = node.closest(".composer")?.querySelector<HTMLTextAreaElement>("textarea") ?? null;
-  }, []);
+  // the editor on a selection in the chat sends its focus here too (ChatAnnotator)
+  useEffect(() => {
+    messageBoxes.set(storeKey, messageBox);
+    return () => { if (messageBoxes.get(storeKey) === messageBox) messageBoxes.delete(storeKey); };
+  }, [messageBox, storeKey]);
   const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
   // focus that had nowhere left to go goes on to the message box, but never on touch, where that raises the keyboard
   const refocus = useCallback(() => {
@@ -402,22 +410,13 @@ export function ChatAnnotationChips({ storeKey }: { storeKey: string }) {
       observer.disconnect();
     };
   }, [annotations, scroller]);
-  const closeEditor = useCallback(() => {
-    const id = editing?.id;
-    setEditing(null);
-    // the popover traps nothing: the focus goes back to its chip, or on to the box once it is gone
-    window.requestAnimationFrame(() => {
-      const focused = document.activeElement;
-      if (coarse || (focused !== null && focused !== document.body)) return;
-      const chip = [...(row.current?.querySelectorAll<HTMLElement>(".chat-annotation-chip-open") ?? [])].find((node) => node.dataset.annotation === id);
-      if (chip) chip.focus();
-      else refocus();
-    });
-  }, [coarse, editing, refocus]);
+  const closeEditor = useCallback(() => { setEditing(null); }, []);
+  // saved, deleted or let go, the focus goes on to the message box to type on (not on touch)
+  const focusComposer = useCallback(() => focusMessageBox(storeKey), [storeKey]);
 
   if (count === 0) return null;
   const annotation = editing === null ? undefined : annotations.find((item) => item.id === editing.id);
-  return <div className="chat-annotations-bar" ref={held} role="group" aria-label={t("Comments for the next message")}>
+  return <div className="chat-annotations-bar" ref={row} role="group" aria-label={t("Comments for the next message")}>
     <button type="button" className="chat-annotations-chip chat-annotations-count" aria-haspopup="menu" aria-expanded={menu !== null}
       aria-label={t("{n} comments", { n: count })} title={t("{n} comments", { n: count })}
       onClick={(event) => { const anchor = event.currentTarget; setMenu((open) => (open ? null : anchor)); }}>
@@ -435,7 +434,7 @@ export function ChatAnnotationChips({ storeKey }: { storeKey: string }) {
     </div>
     {menu !== null && <RowMenu anchor={menu} title={t("{n} comments", { n: count })} align="start" onClose={() => { setMenu(null); }}
       items={[{ id: "clear", label: t("Clear all"), icon: Trash2, danger: true, run: () => { setConfirming(true); } }]} />}
-    {annotation !== undefined && editing !== null && <AnnotationEditDialog storeKey={storeKey} annotation={annotation} anchor={editing.anchor} onClose={closeEditor} />}
+    {annotation !== undefined && editing !== null && <AnnotationEditDialog storeKey={storeKey} annotation={annotation} anchor={editing.anchor} onClose={closeEditor} focusAfter={focusComposer} />}
     {confirming && <ConfirmDialog title={t("Clear all comments?")} body={t("Every comment collected for this chat is removed.")} confirmLabel={t("Clear all")}
       onConfirm={async () => { clearAnnotations(storeKey); setConfirming(false); }} onClose={() => { setConfirming(false); }} />}
   </div>;

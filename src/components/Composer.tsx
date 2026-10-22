@@ -1142,7 +1142,7 @@ export function Composer({
     <div className={`composer${notices ? " has-notices" : ""}`} role="group" aria-label={t("Message composer")} data-dictating={dictation.voice.state !== "idle" ? "" : undefined} inert={inert || undefined}>
       {greeting}
       {notices}
-      <ChatAnnotationChips storeKey={annotationKey} />
+      <ChatAnnotationChips storeKey={annotationKey} messageBox={textareaRef} />
       {/* no Tab key on a phone: the suggestion can be a chip there that fills the box, when Settings asks for it; a tap
           on the grey words in the box only focuses it, so the tap that starts the user's own reply never takes it */}
       {settings.suggestionChip && offered !== null && text === "" && (
