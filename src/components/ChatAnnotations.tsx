@@ -9,16 +9,17 @@
  * - The comment editor: a popover under the selection on a desktop, the modal bottom sheet on a
  *   phone (`SHEET_QUERY`). What was selected is read when Comment is pressed, since focusing the
  *   comment's field collapses the selection.
+ *   `AnnotationEditDialog` opens the same editor on a saved annotation, to change or delete it.
  * - `ChatAnnotationsBar`, over the composer: the count, and a dialog to look through, remove, clear,
  *   insert into the message draft or send them.
  */
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { MessageSquarePlus, MessageSquareText, Trash2, X } from "lucide-react";
 
 import "./ChatAnnotations.css";
 
-import { addAnnotation, clearAnnotations, formatAnnotationsMarkdown, removeAnnotation, useChatAnnotations, type ChatAnnotationSource } from "../lib/chatAnnotations.ts";
+import { addAnnotation, clearAnnotations, formatAnnotationsMarkdown, removeAnnotation, updateAnnotation, useChatAnnotations, type ChatAnnotation, type ChatAnnotationSource } from "../lib/chatAnnotations.ts";
 import { annotationContext, annotationSource, boxesMeet, popoverPlace, triggerPlace, type Box } from "../lib/chatSelection.ts";
 import { useT } from "../lib/i18n.ts";
 import { SHEET_QUERY, useSheetSwipe } from "../lib/sheets.ts";
@@ -33,6 +34,7 @@ interface Selected {
   source: ChatAnnotationSource;
   quote: string;
   context?: string;
+  turnTs?: string;
   /** the whole selection, and its last line: the popover goes under the one, Comment beside the other */
   box: Box;
   end: Box;
@@ -59,7 +61,7 @@ function readSelection(root: HTMLElement): Selected | null {
   const last = lines[lines.length - 1] ?? range.getBoundingClientRect();
   // its end scrolled out of the chat: Comment would stand over other words, or the composer
   if (!boxesMeet(boxOf(last), boxOf(root.getBoundingClientRect()))) return null;
-  return { source, quote, context: annotationContext(start.dataset.annotateTs), box: boxOf(range.getBoundingClientRect()), end: boxOf(last) };
+  return { source, quote, context: annotationContext(start.dataset.annotateTs), turnTs: start.dataset.annotateTs, box: boxOf(range.getBoundingClientRect()), end: boxOf(last) };
 }
 
 /** Docked Comment's gap to the chat's foot: clear of a phone's card that rises over the transcript (--composer-over) */
@@ -135,7 +137,7 @@ export function ChatAnnotator({ root, storeKey }: { root: HTMLElement | null; st
   const close = useCallback(() => { setEditing(null); }, []);
   const save = useCallback((comment: string) => {
     if (editing === null) return;
-    addAnnotation(storeKey, { source: editing.source, quote: editing.quote, comment, context: editing.context });
+    addAnnotation(storeKey, { source: editing.source, quote: editing.quote, comment, context: editing.context, turnTs: editing.turnTs });
     setEditing(null);
     setSelected(null);
     document.getSelection()?.removeAllRanges();
@@ -153,39 +155,51 @@ export function ChatAnnotator({ root, storeKey }: { root: HTMLElement | null; st
       </button>,
       document.body,
     )}
-    {editing !== null && <AnnotationEditor selected={editing} onSave={save} onClose={close} />}
+    {editing !== null && <AnnotationEditor title={t("Comment on selection")} quote={editing.quote} box={editing.box} onSave={save} onClose={close} />}
   </>;
 }
 
-function AnnotationEditor({ selected, onSave, onClose }: { selected: Selected; onSave: (comment: string) => void; onClose: () => void }) {
+interface EditorProps {
+  title: string;
+  quote: string;
+  /** what the popover goes under; without one it opens as the modal */
+  box: Box | null;
+  initialComment?: string;
+  onSave: (comment: string) => void;
+  onClose: () => void;
+  /** offered only for an annotation already saved */
+  onDelete?: () => void;
+}
+
+function AnnotationEditor({ title, quote, box, initialComment = "", onSave, onClose, onDelete }: EditorProps) {
   const t = useT();
   const id = useId();
   const sheet = useMediaQuery(SHEET_QUERY);
   // a touch screen gets the modal (a sheet on a phone, a dialog on a tablet): a popover under the
   // selection would sit behind the on-screen keyboard, which iOS leaves out of innerHeight
   const coarse = useMediaQuery("(pointer: coarse)");
-  const modal = sheet || coarse;
+  const modal = sheet || coarse || box === null;
   const field = useRef<HTMLTextAreaElement>(null);
   // only the modal traps Tab; focus never goes back to the composer on touch, which would raise the keyboard
   const surface = useFocusTrap<HTMLDivElement>(modal, { initialFocus: field, shouldRestore: () => !coarse });
   useSheetSwipe(surface, sheet ? onClose : null);
   useSheetHistory(sheet, onClose);
-  const [comment, setComment] = useState("");
+  const [comment, setComment] = useState(initialComment);
   const [place, setPlace] = useState<{ top: number; left: number } | null>(null);
   const empty = comment.trim().length === 0;
 
   useLayoutEffect(() => {
     const node = surface.current;
-    if (modal || node === null) return;
-    setPlace(popoverPlace(selected.box, viewport(), { width: node.offsetWidth, height: node.offsetHeight }));
-  }, [modal, selected, surface]);
+    if (modal || node === null || box === null) return;
+    setPlace(popoverPlace(box, viewport(), { width: node.offsetWidth, height: node.offsetHeight }));
+  }, [box, modal, surface]);
   // the popover is not modal and traps nothing: the field takes the focus once it is placed (a
   // field inside the hidden, unplaced popover would refuse it)
   const placed = place !== null;
   useEffect(() => { if (!modal && placed) field.current?.focus({ preventScroll: true }); }, [modal, placed]);
-  // read by the outside press: a comment being written is never thrown away by a stray click
+  // read by the outside press: a comment being written or changed is never thrown away by a stray click
   const written = useRef(false);
-  written.current = comment.trim().length > 0;
+  written.current = comment.trim().length > 0 && comment !== initialComment;
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
@@ -214,9 +228,9 @@ function AnnotationEditor({ selected, onSave, onClose }: { selected: Selected; o
   };
 
   const body = <>
-    <header className="modal-header"><h2 className="modal-title" id={`${id}-title`}>{t("Comment on selection")}</h2></header>
+    <header className="modal-header"><h2 className="modal-title" id={`${id}-title`}>{title}</h2></header>
     <div className="modal-body chat-annotate-body">
-      <blockquote className="chat-annotate-quote">{selected.quote}</blockquote>
+      <blockquote className="chat-annotate-quote">{quote}</blockquote>
       <label className="visually-hidden" htmlFor={`${id}-comment`}>{t("Your comment")}</label>
       <textarea ref={field} id={`${id}-comment`} className="input chat-annotate-field" rows={3} value={comment}
         placeholder={t("What should the agent know about this?")}
@@ -224,6 +238,7 @@ function AnnotationEditor({ selected, onSave, onClose }: { selected: Selected; o
         onChange={(event) => { setComment(event.target.value); }} onKeyDown={onFieldKey} />
     </div>
     <footer className="modal-footer">
+      {onDelete && <button type="button" className="btn btn-ghost chat-annotate-delete" onClick={onDelete}><Trash2 aria-hidden="true" />{t("Delete")}</button>}
       <button type="button" className="btn" onClick={onClose}>{t("Cancel")}</button>
       <button type="button" className="btn btn-primary" disabled={empty} onClick={() => { onSave(comment.trim()); }}>{t("Save")}</button>
     </footer>
@@ -241,6 +256,15 @@ function AnnotationEditor({ selected, onSave, onClose }: { selected: Selected; o
     <div ref={surface} className="menu chat-annotate-editor chat-annotate-popover" role="dialog" aria-labelledby={`${id}-title`} tabIndex={-1} style={place ?? { visibility: "hidden" }}>{body}</div>,
     document.body,
   );
+}
+
+/** The editor for a saved annotation: change its comment or delete it. `anchor` places the popover. */
+export function AnnotationEditDialog({ storeKey, annotation, anchor, onClose }: { storeKey: string; annotation: ChatAnnotation; anchor: DOMRect | null; onClose: () => void }) {
+  const t = useT();
+  const box = useMemo(() => (anchor === null ? null : boxOf(anchor)), [anchor]);
+  const save = useCallback((comment: string) => { updateAnnotation(storeKey, annotation.id, { comment }); onClose(); }, [annotation.id, onClose, storeKey]);
+  const remove = useCallback(() => { removeAnnotation(storeKey, annotation.id); onClose(); }, [annotation.id, onClose, storeKey]);
+  return <AnnotationEditor title={t("Edit comment")} quote={annotation.quote} box={box} initialComment={annotation.comment} onSave={save} onClose={onClose} onDelete={remove} />;
 }
 
 interface BarProps {
