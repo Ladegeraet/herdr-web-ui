@@ -11,6 +11,7 @@ export interface ChatAnnotation {
   source: ChatAnnotationSource;
   /** The selected text. */
   quote: string;
+  /** "" flags the passage without a comment */
   comment: string;
   /** Where the quote came from, e.g. "message 4 · 14:32". */
   context?: string;
@@ -45,9 +46,8 @@ export function formatAnnotationsMarkdown(list: readonly ChatAnnotation[]): stri
         "",
         "Comment on:",
         quoteLines(annotation.quote),
-        "",
-        "User comment:",
-        quoteLines(annotation.comment),
+        // a passage only flagged, with no comment: the quote alone
+        ...(annotation.comment.trim() === "" ? [] : ["", "User comment:", quoteLines(annotation.comment)]),
       ].join("\n");
     })
     .join("\n\n");
