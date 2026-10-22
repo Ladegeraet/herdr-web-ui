@@ -307,6 +307,7 @@ const BASE: Record<string, string> = {
   "Comment on selection": "评论所选内容",
   "Edit comment": "编辑评论",
   "Comments for the next message": "随下一条消息发送的评论",
+  "{n} comment": "{n} 条评论",
   "{n} comments": "{n} 条评论",
   "Remove comment {n}": "删除评论 {n}",
   "Clear all comments?": "清除所有评论？",

@@ -305,6 +305,7 @@ const BASE: Record<string, string> = {
   "Comment on selection": "選択部分にコメント",
   "Edit comment": "コメントを編集",
   "Comments for the next message": "次のメッセージに付けるコメント",
+  "{n} comment": "コメント {n} 件",
   "{n} comments": "コメント {n} 件",
   "Remove comment {n}": "コメント {n} を削除",
   "Clear all comments?": "すべてのコメントを消去しますか?",

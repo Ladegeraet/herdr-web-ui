@@ -303,6 +303,7 @@ const BASE: Record<string, string> = {
   "Comment on selection": "선택한 부분에 댓글",
   "Edit comment": "댓글 편집",
   "Comments for the next message": "다음 메시지에 붙일 댓글",
+  "{n} comment": "댓글 {n}개",
   "{n} comments": "댓글 {n}개",
   "Remove comment {n}": "댓글 {n} 삭제",
   "Clear all comments?": "모든 댓글을 지울까요?",

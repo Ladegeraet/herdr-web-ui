@@ -43,13 +43,16 @@ export function jumpToMountedPassage(from: Element, annotation: SentAnnotation):
 /** How the chat finds a card's passage; ChatView adds the turns its list has not mounted. */
 export const FeedbackJumpContext = createContext<(from: Element, annotation: SentAnnotation) => void>((from, annotation) => { jumpToMountedPassage(from, annotation); });
 
+/** The quote as the card shows it: one run of words, so the two lines it has show its second paragraph too. */
+const cardQuote = (quote: string): string => quote.replace(/\s*\n\s*/g, " ");
+
 function FeedbackCard({ annotation }: { annotation: SentAnnotation }) {
   const t = useT();
   const jump = useContext(FeedbackJumpContext);
   const side = annotation.source === "agent" ? t("agent") : t("you");
   return <li className="chat-feedback-card">
     <span className="chat-feedback-meta">{annotation.context ? `${side} · ${annotation.context}` : side}</span>
-    <button type="button" className="chat-feedback-quote" title={t("Show the passage")} onClick={(event) => { jump(event.currentTarget, annotation); }}>{annotation.quote}</button>
+    <button type="button" className="chat-feedback-quote" title={t("Show the passage")} onClick={(event) => { jump(event.currentTarget, annotation); }}>{cardQuote(annotation.quote)}</button>
     {annotation.comment !== "" && <p className="chat-feedback-comment">{annotation.comment}</p>}
   </li>;
 }

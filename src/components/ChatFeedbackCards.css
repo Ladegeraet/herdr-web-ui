@@ -82,6 +82,7 @@
   color: var(--text-dim);
   font: inherit;
   text-align: left;
+  /* its line breaks are folded into spaces (ChatFeedbackCards.tsx); runs of spaces stay */
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   cursor: pointer;
@@ -98,4 +99,12 @@
   line-height: var(--lh-prose);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* a finger's reach: the fold's row and a quote are touch targets */
+@media (pointer: coarse) {
+  .chat-feedback-summary,
+  .chat-feedback-quote {
+    min-height: var(--touch-target);
+  }
 }

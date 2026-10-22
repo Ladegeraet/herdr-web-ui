@@ -415,10 +415,11 @@ export function ChatAnnotationChips({ storeKey, messageBox }: { storeKey: string
   const focusComposer = useCallback(() => focusMessageBox(storeKey), [storeKey]);
 
   if (count === 0) return null;
+  const countLabel = t(count === 1 ? "{n} comment" : "{n} comments", { n: count });
   const annotation = editing === null ? undefined : annotations.find((item) => item.id === editing.id);
   return <div className="chat-annotations-bar" ref={row} role="group" aria-label={t("Comments for the next message")}>
     <button type="button" className="chat-annotations-chip chat-annotations-count" aria-haspopup="menu" aria-expanded={menu !== null}
-      aria-label={t("{n} comments", { n: count })} title={t("{n} comments", { n: count })}
+      aria-label={countLabel} title={countLabel}
       onClick={(event) => { const anchor = event.currentTarget; setMenu((open) => (open ? null : anchor)); }}>
       <MessageSquareText aria-hidden="true" />{count}
     </button>
@@ -432,7 +433,7 @@ export function ChatAnnotationChips({ storeKey, messageBox }: { storeKey: string
           onClick={() => { removeAnnotation(storeKey, item.id); setRemovedAt(index); }}><X aria-hidden="true" /></button>
       </span>)}
     </div>
-    {menu !== null && <RowMenu anchor={menu} title={t("{n} comments", { n: count })} align="start" onClose={() => { setMenu(null); }}
+    {menu !== null && <RowMenu anchor={menu} title={countLabel} align="start" onClose={() => { setMenu(null); }}
       items={[{ id: "clear", label: t("Clear all"), icon: Trash2, danger: true, run: () => { setConfirming(true); } }]} />}
     {annotation !== undefined && editing !== null && <AnnotationEditDialog storeKey={storeKey} annotation={annotation} anchor={editing.anchor} onClose={closeEditor} focusAfter={focusComposer} />}
     {confirming && <ConfirmDialog title={t("Clear all comments?")} body={t("Every comment collected for this chat is removed.")} confirmLabel={t("Clear all")}
