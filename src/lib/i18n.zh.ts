@@ -318,6 +318,10 @@ const BASE: Record<string, string> = {
   "What should the agent know about this?": "关于这里，智能体需要知道什么？",
   "Clear all": "全部清除",
   "Every comment collected for this chat is removed.": "此聊天中收集的所有评论都将被删除。",
+  "agent": "智能体",
+  "you": "你",
+  "Show the passage": "显示原文",
+  "Comments sent with this message": "随此消息发送的评论",
   // t3code ports (d)
   "Change PC": "切换电脑",
   "Selected": "已选择",

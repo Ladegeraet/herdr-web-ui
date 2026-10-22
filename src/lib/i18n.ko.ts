@@ -314,6 +314,10 @@ const BASE: Record<string, string> = {
   "What should the agent know about this?": "에이전트가 이 부분에 대해 알아야 할 점은?",
   "Clear all": "모두 지우기",
   "Every comment collected for this chat is removed.": "이 채팅에서 모은 댓글이 모두 삭제됩니다.",
+  "agent": "에이전트",
+  "you": "나",
+  "Show the passage": "해당 부분 보기",
+  "Comments sent with this message": "이 메시지와 함께 보낸 댓글",
   // t3code ports (d)
   "Change PC": "PC 바꾸기",
   "Selected": "선택됨",

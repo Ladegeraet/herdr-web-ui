@@ -4,7 +4,8 @@
  * Highlight API, so the message's DOM stays React's and a virtualized row that mounts again is
  * marked again; a browser without it marks nothing. A tap on a pending passage opens its editor.
  * Each quote is found by its words in the message it came from (`data-annotate-ts`), the first
- * match; one that is not there, or a message scrolled out of the window, is skipped.
+ * match; one that is not there, or a message scrolled out of the window, is skipped. A sent
+ * feedback card's quote lights its passage for a moment (flashPassage).
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -31,8 +32,8 @@ function highlights(): { pending: Highlight; sent: Highlight } {
   return shared;
 }
 
-// the message's words, not a button's name or a field's text: what a selection could take
-const NOT_WORDS = "button, input, textarea, [contenteditable]";
+// the message's words, not a button's name or a field's text, nor the cards of feedback sent with it
+const NOT_WORDS = "button, input, textarea, [contenteditable], .chat-feedback";
 
 function textNodes(element: Element): Text[] {
   const nodes: Text[] = [];
@@ -43,17 +44,46 @@ function textNodes(element: Element): Text[] {
   return nodes;
 }
 
-function rangeOf(root: HTMLElement, annotation: ChatAnnotation): Range | null {
-  if (!annotation.turnTs) return null;
-  const message = root.querySelector(`[data-annotate-ts="${CSS.escape(annotation.turnTs)}"]`);
-  if (message === null) return null;
+/** Where `quote` first stands in the message's words, whitespace aside; null when it is not there. */
+export function passageRange(message: Element, quote: string): Range | null {
   const nodes = textNodes(message);
-  const span = findQuote(nodes.map((node) => node.data), annotation.quote);
+  const span = findQuote(nodes.map((node) => node.data), quote);
   if (span === null) return null;
   const range = document.createRange();
   range.setStart(nodes[span.start.node] as Text, span.start.offset);
   range.setEnd(nodes[span.end.node] as Text, span.end.offset);
   return range;
+}
+
+function rangeOf(root: HTMLElement, annotation: ChatAnnotation): Range | null {
+  if (!annotation.turnTs) return null;
+  const message = root.querySelector(`[data-annotate-ts="${CSS.escape(annotation.turnTs)}"]`);
+  return message === null ? null : passageRange(message, annotation.quote);
+}
+
+/** How long a passage jumped to from a sent card stays lit. */
+const FLASH_MS = 1600;
+let flashed: { range: Range; timer: ReturnType<typeof setTimeout> } | null = null;
+
+/** Scrolls the passage into the middle of the chat and lights it briefly; without the API it only scrolls. */
+export function flashPassage(range: Range): void {
+  const start = range.startContainer;
+  (start instanceof Element ? start : start.parentElement)?.scrollIntoView({ block: "center" });
+  if (!SUPPORTED) return;
+  let highlight = CSS.highlights.get("chat-annotation-flash");
+  if (highlight === undefined) {
+    highlight = new Highlight();
+    // over the pending and sent marks of the same words
+    highlight.priority = 2;
+    CSS.highlights.set("chat-annotation-flash", highlight);
+  }
+  if (flashed !== null) {
+    clearTimeout(flashed.timer);
+    highlight.delete(flashed.range);
+  }
+  highlight.add(range);
+  const lit = highlight;
+  flashed = { range, timer: setTimeout(() => { lit.delete(range); flashed = null; }, FLASH_MS) };
 }
 
 const hits = (range: Range, x: number, y: number): boolean =>

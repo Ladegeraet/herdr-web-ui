@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { addAnnotation, annotationChipLabel, clearAnnotations, composeWithAnnotations, formatAnnotationsMarkdown, getAnnotations, getSentAnnotations, markAnnotationsSent, planAnnotatedSend, removeAnnotation, subscribeAnnotations, updateAnnotation, type ChatAnnotation } from "./chatAnnotations.ts";
+import { addAnnotation, annotationChipLabel, clearAnnotations, composeWithAnnotations, formatAnnotationsMarkdown, getAnnotations, getSentAnnotations, markAnnotationsSent, parseAnnotationsBlock, planAnnotatedSend, removeAnnotation, subscribeAnnotations, updateAnnotation, type ChatAnnotation } from "./chatAnnotations.ts";
 
 let keys = 0;
 /** A conversation no other test touches: the store is shared by the whole module. */
@@ -85,6 +85,59 @@ describe("composeWithAnnotations", () => {
 
   it("leaves the text as it is without annotations", () => {
     expect(composeWithAnnotations("  as typed ", [])).toBe("  as typed ");
+  });
+});
+
+describe("parseAnnotationsBlock", () => {
+  const sent = (fields: Partial<ChatAnnotation>) => {
+    const { source, quote, comment, context } = annotation(fields);
+    return { source, quote, comment, ...(context === undefined ? {} : { context }) };
+  };
+
+  it("reads back what was typed and every annotation, in order", () => {
+    const list = [
+      annotation({ id: "a", quote: "Use a map here", comment: "Why not a set?", context: "14:32", createdAt: 1 }),
+      annotation({ id: "b", source: "user", quote: 'a "quoted" word', comment: "first\n\nsecond", createdAt: 2 }),
+      annotation({ id: "c", quote: "flagged only", comment: "", context: "06:03", createdAt: 3 }),
+      annotation({ id: "d", quote: "line one\n  indented\n```ts\ncode", comment: "> nested\nok", context: "06:04", createdAt: 4 }),
+      annotation({ id: "e", quote: "word ".repeat(60).trim(), createdAt: 5 }),
+    ];
+    expect(parseAnnotationsBlock(composeWithAnnotations("das ist ganz coolio", list))).toEqual({
+      text: "das ist ganz coolio",
+      annotations: list.map((item) => sent(item)),
+    });
+  });
+
+  it("reads a message that is only the block", () => {
+    expect(parseAnnotationsBlock(composeWithAnnotations("", [annotation({})]))).toEqual({ text: "", annotations: [sent({})] });
+  });
+
+  it("reads a block whose line ends were changed to CRLF", () => {
+    expect(parseAnnotationsBlock(composeWithAnnotations("hi", [annotation({})]).replace(/\n/g, "\r\n"))?.annotations).toEqual([sent({})]);
+  });
+
+  it("finds nothing in a message without a block", () => {
+    expect(parseAnnotationsBlock("just a message")).toBeNull();
+    expect(parseAnnotationsBlock("")).toBeNull();
+    expect(parseAnnotationsBlock("# Message Feedback\n\nwritten by hand\n\n---")).toBeNull();
+  });
+
+  it("reads nothing from a block that does not read back whole", () => {
+    const block = formatAnnotationsMarkdown([annotation({}), annotation({ id: "b", quote: "two", createdAt: 2 })]);
+    expect(parseAnnotationsBlock(block.replace(/\n---$/, ""))).toBeNull();
+    expect(parseAnnotationsBlock(`${block}\n\nmore words`)).toBeNull();
+    expect(parseAnnotationsBlock(block.replace("## 2.", "## 3."))).toBeNull();
+    expect(parseAnnotationsBlock(block.replace("2 pieces", "3 pieces"))).toBeNull();
+    expect(parseAnnotationsBlock(block.replace("(agent message)", "(someone)"))).toBeNull();
+    const fenced = formatAnnotationsMarkdown([annotation({ quote: "a\nb" })]);
+    expect(parseAnnotationsBlock(fenced.replace("```\n> noted", "> noted"))).toBeNull();
+    expect(parseAnnotationsBlock("# Message Feedback\n\nI've reviewed this conversation and have 0 pieces of feedback:\n\n---")).toBeNull();
+  });
+
+  it("takes a title typed above the block, or quoted in it, as words", () => {
+    const quoted = annotation({ quote: "# Message Feedback\n\n---" });
+    const message = composeWithAnnotations("# Message Feedback\n\nmy notes", [quoted]);
+    expect(parseAnnotationsBlock(message)).toEqual({ text: "# Message Feedback\n\nmy notes", annotations: [sent(quoted)] });
   });
 });
 

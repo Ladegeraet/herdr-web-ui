@@ -2179,6 +2179,19 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   (`--bg-elevated`, not the failure's tint), and they stay; with nothing typed it is refused with
   that note. A block too long for one message is
   refused.
+- In the chat, a user message ending in that block shows the typed words as usual and the block as
+  small cards under them, inside the bubble (`.chat-feedback-*`, ChatFeedbackCards.tsx): a
+  `--rail-w` `--accent` rail on `--bg-panel`, where it came from (`agent · 06:03`, `--fs-2xs`,
+  `--text-dim`), the quote in `--text-dim` on two lines at most, and the comment below in the
+  bubble's body size; a flagged passage shows only its quote. Three or more fold into one
+  "{n} comments" row with a chevron (right while folded, down while open). The block is read back
+  from the text alone (`parseAnnotationsBlock`), so messages from before a reload show the same;
+  one that does not read back whole stays Markdown. Copy still copies the message as sent. A tap on
+  a quote finds the passage in an earlier message of its side (its time first; a turn the list has
+  not mounted is scrolled to first), scrolls it to the middle and lights it for a moment
+  (`chat-annotation-flash`: `--accent-tint` under a solid `--accent` underline); one not found does
+  nothing. Follows the Claude and Codex apps, which show what went with a message (a file, a quoted
+  passage) as a compact attachment under it rather than as its text.
 - The passage a comment was made on is marked in its message with the CSS Custom Highlight API
   (no DOM change): pending is a dotted `--accent` underline on `--accent-tint`, sent is a dotted
   `--text-dim` underline. It is found by text, whitespace ignored, first match in the message

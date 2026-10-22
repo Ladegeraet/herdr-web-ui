@@ -316,6 +316,10 @@ const BASE: Record<string, string> = {
   "What should the agent know about this?": "エージェントに伝えたいことは?",
   "Clear all": "すべて消去",
   "Every comment collected for this chat is removed.": "このチャットで集めたコメントがすべて削除されます。",
+  "agent": "エージェント",
+  "you": "自分",
+  "Show the passage": "該当箇所を表示",
+  "Comments sent with this message": "このメッセージと一緒に送ったコメント",
   // t3code ports (d)
   "Change PC": "PCを切り替え",
   "Selected": "選択中",
