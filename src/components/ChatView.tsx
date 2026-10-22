@@ -23,6 +23,7 @@ import { ChatAnnotationMarks, flashPassage } from "./ChatAnnotationMarks.tsx";
 import { ChatFeedbackCards, FeedbackJumpContext, jumpToMountedPassage } from "./ChatFeedbackCards.tsx";
 import { ChatAnnotator } from "./ChatAnnotations.tsx";
 import { parseAnnotationsBlock, sentAnnotationOf, type SentAnnotation } from "../lib/chatAnnotations.ts";
+import { looseWords, markdownLooseWords } from "../lib/chatHighlights.ts";
 import { minimapTurns } from "../lib/chatMinimap.ts";
 import { passageMatch, passageRange } from "../lib/chatPassage.ts";
 import type { LegendListRef } from "@legendapp/list/react";
@@ -231,8 +232,6 @@ export interface ChatViewProps {
 
 
 /** a user turn's words, as its bubble shows them */
-/** Words to find a quote by in a turn's Markdown: no whitespace, no Markdown marks (the chat draws neither). */
-const looseWords = (text: string): string => text.replace(/[\s*_~`#>|[\]()\\]+/g, "");
 
 const userText = (turn: ConversationTurn): string => turn.parts.filter((part): part is Extract<ConversationPart, { kind: "text" }> => part.kind === "text").map((part) => part.text).join("\n\n");
 
@@ -2242,7 +2241,7 @@ export const ChatView = memo(function ChatView({ paneId, presentationKey, finish
     const role = annotation.source === "agent" ? "assistant" : "user";
     const target = turns.slice(0, end).reverse().find((turn) => turn.role === role && turn.ts !== null
       && (annotation.context === undefined || annotationContext(turn.ts) === annotation.context)
-      && looseWords(role === "user" ? parseAnnotationsBlock(userText(turn))?.text ?? userText(turn) : userText(turn)).includes(needle));
+      && markdownLooseWords(role === "user" ? parseAnnotationsBlock(userText(turn))?.text ?? userText(turn) : userText(turn)).includes(needle));
     const ts = target?.ts;
     const row = timelineRowsRef.current.findIndex((item) => item.turn === target);
     if (target === undefined || !ts || row < 0) return;

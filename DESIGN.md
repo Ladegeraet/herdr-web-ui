@@ -2201,7 +2201,7 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   passage) as a compact attachment under it rather than as its text.
 - The passage a comment was made on is marked in its message with the CSS Custom Highlight API
   (no DOM change), one highlight per state holding every passage: pending is a solid tint
-  (`color-mix` of `--accent` at 28%) with a 1px solid `--accent` underline, sent a calmer 11% tint
+  (`color-mix` of `--accent` at 28%) with a 1px solid `--accent` underline, sent a calmer 15% tint
   with no underline. Both read over inline code's own background, in dark and light themes.
 - A passage is anchored when its comment is saved, from the selection's DOM Range (lib/chatHighlights.ts,
   lib/chatPassage.ts): its start and end in the message's normalized text (text nodes joined, each

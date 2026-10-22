@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { anchorOf, findQuote, flatOffset, flattenText, resolvePassage, textPieces, type TextPiece, type TextSpan, type WalkNode } from "./chatHighlights.ts";
+import { anchorOf, findQuote, flatOffset, flattenText, looseWords, markdownLooseWords, resolvePassage, textPieces, type TextPiece, type TextSpan, type WalkNode } from "./chatHighlights.ts";
 
 // a few plain objects in the shape of DOM nodes, for the walk
 interface Model extends WalkNode { className: string; childNodes: Model[] }
@@ -201,5 +201,37 @@ describe("findQuote", () => {
     expect(findQuote(["Hello world"], "goodbye")).toBeNull();
     expect(findQuote(["Hello world"], " \n ")).toBeNull();
     expect(findQuote([], "Hello")).toBeNull();
+  });
+});
+
+describe("markdownLooseWords", () => {
+  const finds = (markdown: string, quote: string): boolean => markdownLooseWords(markdown).includes(looseWords(quote));
+
+  it("finds a quote across two bullets", () => {
+    const markdown = "**182668 – Erste Zeile**\n\n- `TextAlign` applied twice in `_layoutFirstLine`\n- Remove the second call\n  * nested item";
+    expect(finds(markdown, "applied twice in _layoutFirstLine\nRemove")).toBe(true);
+    expect(finds(markdown, "second call\nnested")).toBe(true);
+  });
+
+  it("finds a quote across ordered list items and task boxes", () => {
+    expect(finds("1. First step\n2) Second step\n10. Tenth", "First step\nSecond step\nTenth")).toBe(true);
+    expect(finds("- [ ] open task\n- [x] done task", "open task\ndone task")).toBe(true);
+  });
+
+  it("finds a quote from a heading into a bullet, and through a blockquote", () => {
+    expect(finds("## Second note – check `main.dart:12`\n\n- runApp wraps VetosApp", "check main.dart:12\n\nrunApp wraps")).toBe(true);
+    expect(finds("> quoted line\n> > nested - 1. not a list", "quoted line\nnested - 1. not a list")).toBe(true);
+  });
+
+  it("finds a quote across table cells and rows", () => {
+    const table = "| File | Line |\n| :--- | ---: |\n| `pdf_main_view.dart` | 56 |\n| editor.dart | 88 |";
+    expect(finds(table, "Line\npdf_main_view.dart\t56\neditor.dart")).toBe(true);
+  });
+
+  it("drops link targets and fences but keeps a dash inside a line", () => {
+    expect(finds("See [the docs](https://example.com/a) now", "See the docs now")).toBe(true);
+    expect(finds("```ts\nconst a = 1;\n```\nAfter", "const a = 1;\nAfter")).toBe(true);
+    expect(finds("a - b", "ab")).toBe(false);
+    expect(finds("- Remove the call", "Remove the cal")).toBe(true);
   });
 });
