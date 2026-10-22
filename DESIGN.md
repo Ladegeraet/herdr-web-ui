@@ -2165,7 +2165,11 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   opens them, beside a Clear all chip (through the confirm). With a mouse, the focus goes on to the
   new chip after a save, and back where it came from after a cancel or delete. They are held per pane, in memory only (lib/chatAnnotations.ts).
 - The composer's Send carries them, as an attachment: the typed text first, then the annotations'
-  Markdown block; with them, an empty box can be sent. Only a message delivered at once takes them,
+  Markdown block in Plannotator's feedback shape (`# Message Feedback`, "I've reviewed this
+  conversation and have N piece(s) of feedback:", one `## N. (agent message|your message, HH:MM)
+  Feedback on: "quote"` per comment, oldest first, the comment as `> ` lines, `---` at the end; a
+  multi-line quote or one over 200 characters goes whole in a fenced block under the heading, and a
+  flagged passage has no `>` line); with them, an empty box can be sent. Only a message delivered at once takes them,
   and they leave only once it is confirmed (one added meanwhile stays). A message queued while the
   agent works, or taken as the answer to its open question, goes without them with a calm note
   (`--bg-elevated`, not the failure's tint), and they stay; with nothing typed it is refused with
