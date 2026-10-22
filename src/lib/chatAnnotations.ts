@@ -24,33 +24,38 @@ export interface ChatAnnotation {
 
 export type ChatAnnotationInput = Omit<ChatAnnotation, "id" | "createdAt">;
 
-/** Each line of `text` as a Markdown quote line, without CRs, trailing spaces or blank edges. */
-function quoteLines(text: string): string {
+/** The lines of `text` without CRs, trailing spaces or blank edges. */
+function cleanLines(text: string): string[] {
   const lines = text.replace(/\r\n?/g, "\n").split("\n").map((line) => line.trimEnd());
   while (lines.length > 0 && lines[0] === "") lines.shift();
   while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
-  if (lines.length === 0) return ">";
-  return lines.map((line) => (line === "" ? ">" : `> ${line}`)).join("\n");
+  return lines;
 }
 
-/** The annotations as one Markdown message, oldest first; "" when there are none. */
+/** A quote longer than this goes in a fenced block, not inline in the heading. */
+const INLINE_QUOTE_MAX = 200;
+
+/** One entry: the heading with the quote inline, or a fenced block for a long or multi-line one, then the comment quoted. */
+function feedbackEntry(annotation: ChatAnnotation, number: number): string {
+  const context = annotation.context?.trim();
+  const label = `${annotation.source === "agent" ? "agent message" : "your message"}${context ? `, ${context}` : ""}`;
+  const heading = `## ${number}. (${label}) Feedback on:`;
+  const quote = cleanLines(annotation.quote);
+  const comment = cleanLines(annotation.comment).map((line) => (line === "" ? ">" : `> ${line}`));
+  const single = quote.length <= 1 ? (quote[0] ?? "").trim() : null;
+  if (single !== null && single.length <= INLINE_QUOTE_MAX) return [`${heading} "${single}"`, ...comment].join("\n");
+  // a fence longer than any backtick run in the quote, so the quote cannot close it
+  const longest = Math.max(0, ...(annotation.quote.match(/`+/g) ?? []).map((run) => run.length));
+  const fence = "`".repeat(Math.max(3, longest + 1));
+  return [heading, fence, ...quote, fence, ...comment].join("\n");
+}
+
+/** The annotations as one Markdown feedback block in Plannotator's shape, oldest first; "" when there are none. */
 export function formatAnnotationsMarkdown(list: readonly ChatAnnotation[]): string {
-  return [...list]
-    .sort((a, b) => a.createdAt - b.createdAt)
-    .map((annotation, index) => {
-      const on = annotation.source === "agent" ? "**On agent message**" : "**On your message**";
-      const context = annotation.context?.trim();
-      return [
-        `## Annotation ${index + 1}`,
-        context ? `${on} (${context})` : on,
-        "",
-        "Comment on:",
-        quoteLines(annotation.quote),
-        // a passage only flagged, with no comment: the quote alone
-        ...(annotation.comment.trim() === "" ? [] : ["", "User comment:", quoteLines(annotation.comment)]),
-      ].join("\n");
-    })
-    .join("\n\n");
+  if (list.length === 0) return "";
+  const entries = [...list].sort((a, b) => a.createdAt - b.createdAt).map((annotation, index) => feedbackEntry(annotation, index + 1));
+  const pieces = list.length === 1 ? "1 piece" : `${list.length} pieces`;
+  return ["# Message Feedback", `I've reviewed this conversation and have ${pieces} of feedback:`, ...entries, "---"].join("\n\n");
 }
 
 /** The message as sent: the typed text first, then the annotations' block; `text` as is without any. */

@@ -18,47 +18,55 @@ describe("formatAnnotationsMarkdown", () => {
     expect(formatAnnotationsMarkdown([])).toBe("");
   });
 
-  it("formats one agent annotation with its context", () => {
-    expect(formatAnnotationsMarkdown([annotation({ quote: "Use a map here", comment: "Why not a set?", context: "message 4 · 14:32" })])).toBe(
-      "## Annotation 1\n**On agent message** (message 4 · 14:32)\n\nComment on:\n> Use a map here\n\nUser comment:\n> Why not a set?",
+  it("formats one agent annotation with its time, as one piece of feedback", () => {
+    expect(formatAnnotationsMarkdown([annotation({ quote: "Use a map here", comment: "Why not a set?", context: "14:32" })])).toBe(
+      "# Message Feedback\n\nI've reviewed this conversation and have 1 piece of feedback:\n\n"
+      + "## 1. (agent message, 14:32) Feedback on: \"Use a map here\"\n> Why not a set?\n\n---",
     );
   });
 
   it("labels the user's own messages and leaves out a missing or blank context", () => {
-    expect(formatAnnotationsMarkdown([annotation({ source: "user", quote: "q", comment: "c" })])).toBe(
-      "## Annotation 1\n**On your message**\n\nComment on:\n> q\n\nUser comment:\n> c",
-    );
-    expect(formatAnnotationsMarkdown([annotation({ context: "  " })])).toStartWith("## Annotation 1\n**On agent message**\n");
+    expect(formatAnnotationsMarkdown([annotation({ source: "user", quote: "q", comment: "c" })])).toContain('## 1. (your message) Feedback on: "q"\n> c\n');
+    expect(formatAnnotationsMarkdown([annotation({ context: "  " })])).toContain('## 1. (agent message) Feedback on: "quoted"\n');
   });
 
-  it("leaves out the comment of a passage only flagged", () => {
-    expect(formatAnnotationsMarkdown([annotation({ quote: "flagged", comment: " \n " }), annotation({ quote: "next", createdAt: 2 })])).toBe(
-      "## Annotation 1\n**On agent message**\n\nComment on:\n> flagged\n\n"
-      + "## Annotation 2\n**On agent message**\n\nComment on:\n> next\n\nUser comment:\n> noted",
-    );
-  });
-
-  it("quotes every line of a multi-line quote and comment", () => {
-    expect(formatAnnotationsMarkdown([annotation({ quote: "one\ntwo\n\nfour", comment: "first\nsecond" })])).toBe(
-      "## Annotation 1\n**On agent message**\n\nComment on:\n> one\n> two\n>\n> four\n\nUser comment:\n> first\n> second",
-    );
-  });
-
-  it("drops CRs, trailing spaces and blank edge lines", () => {
-    expect(formatAnnotationsMarkdown([annotation({ quote: "\r\n  indented  \r\nnext\t\r\n\r\n", comment: "ok \n" })])).toBe(
-      "## Annotation 1\n**On agent message**\n\nComment on:\n>   indented\n> next\n\nUser comment:\n> ok",
-    );
-  });
-
-  it("numbers several annotations oldest first", () => {
+  it("numbers several annotations oldest first, as pieces of feedback", () => {
     const text = formatAnnotationsMarkdown([
-      annotation({ id: "b", quote: "later", createdAt: 20 }),
-      annotation({ id: "a", source: "user", quote: "earlier", createdAt: 10 }),
+      annotation({ id: "b", quote: "later", createdAt: 20, context: "14:35" }),
+      annotation({ id: "a", source: "user", quote: "earlier", createdAt: 10, context: "14:32" }),
     ]);
     expect(text).toBe(
-      "## Annotation 1\n**On your message**\n\nComment on:\n> earlier\n\nUser comment:\n> noted\n\n"
-      + "## Annotation 2\n**On agent message**\n\nComment on:\n> later\n\nUser comment:\n> noted",
+      "# Message Feedback\n\nI've reviewed this conversation and have 2 pieces of feedback:\n\n"
+      + "## 1. (your message, 14:32) Feedback on: \"earlier\"\n> noted\n\n"
+      + "## 2. (agent message, 14:35) Feedback on: \"later\"\n> noted\n\n---",
     );
+  });
+
+  it("gives a passage only flagged its heading alone", () => {
+    expect(formatAnnotationsMarkdown([annotation({ quote: "flagged", comment: " \n " }), annotation({ quote: "next", createdAt: 2 })])).toContain(
+      '## 1. (agent message) Feedback on: "flagged"\n\n## 2. (agent message) Feedback on: "next"\n> noted\n\n---',
+    );
+  });
+
+  it("quotes every line of a multi-line comment", () => {
+    expect(formatAnnotationsMarkdown([annotation({ comment: "first\n\nsecond \r\n" })])).toContain('Feedback on: "quoted"\n> first\n>\n> second\n\n---');
+  });
+
+  it("puts a multi-line quote in a fenced block, whole", () => {
+    expect(formatAnnotationsMarkdown([annotation({ quote: "\r\n  indented  \r\nnext\t\r\n\r\n", comment: "ok \n" })])).toContain(
+      "## 1. (agent message) Feedback on:\n```\n  indented\nnext\n```\n> ok\n\n---",
+    );
+  });
+
+  it("puts a long quote in a fenced block without cutting it", () => {
+    const long = "word ".repeat(60).trim();
+    expect(formatAnnotationsMarkdown([annotation({ quote: long })])).toContain(`Feedback on:\n\`\`\`\n${long}\n\`\`\`\n> noted`);
+    const inline = "x".repeat(200);
+    expect(formatAnnotationsMarkdown([annotation({ quote: inline })])).toContain(`Feedback on: "${inline}"\n`);
+  });
+
+  it("fences a quote holding backticks with a longer fence", () => {
+    expect(formatAnnotationsMarkdown([annotation({ quote: "a\n```ts\nb" })])).toContain("Feedback on:\n````\na\n```ts\nb\n````\n> noted");
   });
 });
 
@@ -67,6 +75,7 @@ describe("composeWithAnnotations", () => {
 
   it("puts the typed text first, then the annotations", () => {
     expect(composeWithAnnotations("  overall thoughts \n", [annotation({})])).toBe(`overall thoughts\n\n${block}`);
+    expect(composeWithAnnotations("Overall: fine.", [annotation({})])).toStartWith("Overall: fine.\n\n# Message Feedback\n\n");
   });
 
   it("sends just the block when nothing is typed", () => {
