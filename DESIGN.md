@@ -2168,6 +2168,12 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   agent works, or taken as the answer to its open question, goes without them with a note, and
   they stay; with nothing typed it is refused with that note. A block too long for one message is
   refused.
+- The passage a comment was made on is marked in its message with the CSS Custom Highlight API
+  (no DOM change): pending is a dotted `--accent` underline on `--accent-tint`, sent is a dotted
+  `--text-dim` underline. It is found by text, whitespace ignored, first match in the message
+  (`data-annotate-ts`). A passage that can't be found, or a browser without the API, shows no mark.
+  A tap on a pending mark (without a selection) opens its editor. Follows Google Docs' and Notion's
+  comment highlights.
 - Follows the Claude app's select-to-quote and GitHub's pull request review: comments are gathered
   first and handed over as one message, not sent one by one.
 
