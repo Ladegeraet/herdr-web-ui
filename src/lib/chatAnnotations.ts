@@ -58,6 +58,77 @@ export function formatAnnotationsMarkdown(list: readonly ChatAnnotation[]): stri
   return ["# Message Feedback", `I've reviewed this conversation and have ${pieces} of feedback:`, ...entries, "---"].join("\n\n");
 }
 
+/** One entry read back from a sent feedback block. */
+export interface SentAnnotation {
+  source: ChatAnnotationSource;
+  quote: string;
+  /** "" for a passage only flagged */
+  comment: string;
+  context?: string;
+}
+
+const BLOCK_TITLE = "# Message Feedback";
+const BLOCK_INTRO = /^I've reviewed this conversation and have (\d+) pieces? of feedback:$/;
+const ENTRY_HEADING = /^## (\d+)\. \((agent message|your message)(?:, (.+?))?\) Feedback on:(?: "(.*)")?$/;
+const FENCE = /^`{3,}$/;
+
+/** The entries of a block from its title line on, which must run to the end of `lines`; null when it is not one formatAnnotationsMarkdown wrote. */
+function parseBlockLines(lines: readonly string[]): SentAnnotation[] | null {
+  let at = 1;
+  const skipBlank = (): void => { while (at < lines.length && lines[at]?.trim() === "") at += 1; };
+  skipBlank();
+  const intro = BLOCK_INTRO.exec(lines[at] ?? "");
+  if (intro === null) return null;
+  at += 1;
+  const entries: SentAnnotation[] = [];
+  for (;;) {
+    skipBlank();
+    const line = lines[at];
+    if (line === undefined) return null;
+    if (line.trim() === "---") break;
+    const heading = ENTRY_HEADING.exec(line);
+    if (heading === null || Number(heading[1]) !== entries.length + 1) return null;
+    at += 1;
+    let quote: string;
+    if (heading[4] !== undefined) quote = heading[4];
+    else {
+      const fence = lines[at];
+      if (fence === undefined || !FENCE.test(fence)) return null;
+      const end = lines.indexOf(fence, at + 1);
+      if (end < 0) return null;
+      quote = lines.slice(at + 1, end).join("\n");
+      at = end + 1;
+    }
+    const comment: string[] = [];
+    for (let next = lines[at]; next !== undefined && next.startsWith(">"); next = lines[at]) {
+      comment.push(next.startsWith("> ") ? next.slice(2) : next.slice(1));
+      at += 1;
+    }
+    const context = heading[3];
+    entries.push({ source: heading[2] === "agent message" ? "agent" : "user", quote, comment: comment.join("\n"), ...(context === undefined ? {} : { context }) });
+  }
+  at += 1;
+  skipBlank();
+  if (at < lines.length || entries.length === 0 || entries.length !== Number(intro[1])) return null;
+  return entries;
+}
+
+/**
+ * A sent message split into what was typed and the feedback block composeWithAnnotations put
+ * after it; null when it ends in no such block, or one that does not read back whole. Reads the
+ * text alone, so a message from before a reload reads the same.
+ */
+export function parseAnnotationsBlock(message: string): { text: string; annotations: SentAnnotation[] } | null {
+  const lines = message.replace(/\r\n?/g, "\n").split("\n");
+  // the first title the rest reads whole from: a title typed above the block, or quoted inside it, is not one
+  for (let start = 0; start < lines.length; start += 1) {
+    if (lines[start] !== BLOCK_TITLE || (start > 0 && lines[start - 1]?.trim() !== "")) continue;
+    const annotations = parseBlockLines(lines.slice(start));
+    if (annotations !== null) return { text: lines.slice(0, start).join("\n").trim(), annotations };
+  }
+  return null;
+}
+
 /** The message as sent: the typed text first, then the annotations' block; `text` as is without any. */
 export function composeWithAnnotations(text: string, list: readonly ChatAnnotation[]): string {
   if (list.length === 0) return text;

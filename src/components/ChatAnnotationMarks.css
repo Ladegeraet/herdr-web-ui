@@ -13,3 +13,11 @@
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
 }
+
+/* a passage a sent feedback card jumped to, lit for a moment */
+::highlight(chat-annotation-flash) {
+  background-color: var(--accent-tint);
+  text-decoration: underline solid var(--accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
