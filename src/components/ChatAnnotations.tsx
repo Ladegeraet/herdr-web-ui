@@ -11,11 +11,12 @@
  *   comment's field collapses the selection.
  *   `AnnotationEditDialog` opens the same editor on a saved annotation, to change or delete it.
  * - `ChatAnnotationChips`, over the composer's card: one chip per comment, as an attachment, to edit
- *   or remove; past three they fold into one. The composer's own Send carries them (Composer.tsx).
+ *   or remove, in one row that scrolls sideways after a count that holds Clear all. The composer's
+ *   own Send carries them (Composer.tsx).
  */
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, ChevronUp, MessageSquarePlus, MessageSquareText, Trash2, X } from "lucide-react";
+import { MessageSquarePlus, MessageSquareText, Trash2, X } from "lucide-react";
 
 import "./ChatAnnotations.css";
 
@@ -28,6 +29,7 @@ import { quotedText } from "../lib/terminalQuote.ts";
 import { useFocusTrap } from "../lib/useFocusTrap.ts";
 import { useMediaQuery } from "../lib/useMediaQuery.ts";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
+import { RowMenu } from "./RowMenu.tsx";
 
 /** What was selected, read while it still was. */
 interface Selected {
@@ -192,12 +194,13 @@ interface EditorProps {
   focusAfter?: () => boolean;
 }
 
-/** The comment just saved, as its chip over the composer (or the folded chip that holds it): false without one. */
+/** The comment just saved, as its chip over the composer: false without one. */
 function focusAnnotationChip(id: string): boolean {
-  const chip = [...document.querySelectorAll<HTMLElement>(".chat-annotation-chip-open")].find((node) => node.dataset.annotation === id)
-    ?? document.querySelector<HTMLElement>(".chat-annotations-summary");
+  const chip = [...document.querySelectorAll<HTMLElement>(".chat-annotation-chip-open")].find((node) => node.dataset.annotation === id);
+  // the row scrolls it into view; the page around it stays where it is
+  chip?.scrollIntoView({ block: "nearest", inline: "nearest" });
   chip?.focus({ preventScroll: true });
-  return chip !== null && chip !== undefined;
+  return chip !== undefined;
 }
 
 function AnnotationEditor({ title, quote, box, initialComment = "", onSave, onClose, onDelete, focusAfter }: EditorProps) {
@@ -326,15 +329,14 @@ export function AnnotationEditDialog({ storeKey, annotation, anchor, onClose }: 
   return <AnnotationEditor title={t("Edit comment")} quote={annotation.quote} box={box} initialComment={annotation.comment} onSave={save} onClose={onClose} onDelete={remove} />;
 }
 
-/** Past this many the chips fold into one that says how many, and opens them. */
-const CHIPS_SHOWN = 3;
-
-/** The comments waiting for the next message, as chips over the composer's card: tap one to edit it, X to remove it. */
+/** The comments waiting for the next message, as one row of chips over the composer's card: tap one
+ * to edit it, X to remove it. However many there are the row stays one line high and scrolls
+ * sideways; the count before it stays put and holds Clear all. */
 export function ChatAnnotationChips({ storeKey }: { storeKey: string }) {
   const t = useT();
   const annotations = useChatAnnotations(storeKey);
   const coarse = useMediaQuery("(pointer: coarse)");
-  const [expanded, setExpanded] = useState(false);
+  const [menu, setMenu] = useState<HTMLButtonElement | null>(null);
   const [editing, setEditing] = useState<{ id: string; anchor: DOMRect | null } | null>(null);
   const [confirming, setConfirming] = useState(false);
   // the place of the chip just removed: the focus goes on to the X now there, or the one before
@@ -347,28 +349,59 @@ export function ChatAnnotationChips({ storeKey }: { storeKey: string }) {
     row.current = node;
     if (node) messageBox.current = node.closest(".composer")?.querySelector<HTMLTextAreaElement>("textarea") ?? null;
   }, []);
+  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
   // focus that had nowhere left to go goes on to the message box, but never on touch, where that raises the keyboard
   const refocus = useCallback(() => {
     const focused = document.activeElement;
     if (!coarse && (focused === null || focused === document.body)) messageBox.current?.focus({ preventScroll: true });
   }, [coarse]);
   const before = useRef(count);
-  // the last one removed, sent or cleared folds the row again for the next ones
-  useEffect(() => {
-    const emptied = before.current > 0 && count === 0;
+  // the last one removed, sent or cleared takes the focus to the box; a new one scrolls into view at the row's end
+  useLayoutEffect(() => {
+    const was = before.current;
     before.current = count;
-    if (!emptied) return;
-    setExpanded(false);
-    refocus();
-  }, [count, refocus]);
+    if (count > was && scroller !== null) scroller.scrollLeft = scroller.scrollWidth;
+    if (was > 0 && count === 0) refocus();
+  }, [count, refocus, scroller]);
   useEffect(() => {
     if (removedAt === null) return;
     setRemovedAt(null);
     const buttons = row.current?.querySelectorAll<HTMLElement>(".chat-annotation-chip-remove");
     const next = buttons?.[removedAt] ?? buttons?.[removedAt - 1];
-    if (next) next.focus({ preventScroll: true });
+    if (next) next.focus();
     else refocus();
   }, [annotations, refocus, removedAt]);
+  // the edge with chips out of view fades (ChatAnnotations.css reads the attributes), as the key
+  // bar's does: measured before the first paint, then on scroll and resize, at most once a frame
+  useLayoutEffect(() => {
+    if (scroller === null) return;
+    let frame = 0;
+    const measure = (): void => {
+      frame = 0;
+      const hidden = scroller.scrollWidth - scroller.clientWidth;
+      scroller.toggleAttribute("data-overflow-start", scroller.scrollLeft >= 1);
+      scroller.toggleAttribute("data-overflow-end", hidden - scroller.scrollLeft >= 1);
+    };
+    const schedule = (): void => { if (frame === 0) frame = window.requestAnimationFrame(measure); };
+    // a mouse wheel turns the row: it has no scrollbar to drag, and only a trackpad scrolls sideways
+    const wheel = (event: WheelEvent): void => {
+      if (event.ctrlKey || Math.abs(event.deltaY) <= Math.abs(event.deltaX) || scroller.scrollWidth <= scroller.clientWidth) return;
+      event.preventDefault();
+      scroller.scrollLeft += event.deltaY;
+    };
+    measure();
+    scroller.addEventListener("scroll", schedule, { passive: true });
+    scroller.addEventListener("wheel", wheel, { passive: false });
+    const observer = new ResizeObserver(schedule);
+    observer.observe(scroller);
+    for (const chip of scroller.children) observer.observe(chip);
+    return () => {
+      if (frame !== 0) window.cancelAnimationFrame(frame);
+      scroller.removeEventListener("scroll", schedule);
+      scroller.removeEventListener("wheel", wheel);
+      observer.disconnect();
+    };
+  }, [annotations, scroller]);
   const closeEditor = useCallback(() => {
     const id = editing?.id;
     setEditing(null);
@@ -377,29 +410,31 @@ export function ChatAnnotationChips({ storeKey }: { storeKey: string }) {
       const focused = document.activeElement;
       if (coarse || (focused !== null && focused !== document.body)) return;
       const chip = [...(row.current?.querySelectorAll<HTMLElement>(".chat-annotation-chip-open") ?? [])].find((node) => node.dataset.annotation === id);
-      if (chip) chip.focus({ preventScroll: true });
+      if (chip) chip.focus();
       else refocus();
     });
   }, [coarse, editing, refocus]);
 
   if (count === 0) return null;
-  const many = count > CHIPS_SHOWN;
-  const shown = !many || expanded;
   const annotation = editing === null ? undefined : annotations.find((item) => item.id === editing.id);
   return <div className="chat-annotations-bar" ref={held} role="group" aria-label={t("Comments for the next message")}>
-    {many && <button type="button" className="chat-annotations-chip chat-annotations-summary" aria-expanded={expanded} onClick={() => { setExpanded((open) => !open); }}>
-      <MessageSquareText aria-hidden="true" />{t("{n} comments", { n: count })}
-      {expanded ? <ChevronUp aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}
-    </button>}
-    {many && <button type="button" className="chat-annotations-chip chat-annotations-clear" onClick={() => { setConfirming(true); }}>{t("Clear all")}</button>}
-    {shown && annotations.map((item, index) => <span key={item.id} className="chat-annotations-chip chat-annotation-chip">
-      <button type="button" className="chat-annotation-chip-open" data-annotation={item.id} aria-haspopup="dialog" title={item.comment || item.quote}
-        onClick={(event) => { setEditing({ id: item.id, anchor: event.currentTarget.getBoundingClientRect() }); }}>
-        <MessageSquareText aria-hidden="true" /><span className="chat-annotation-chip-text">{annotationChipLabel(item)}</span>
-      </button>
-      <button type="button" className="chat-annotation-chip-remove" aria-label={t("Remove comment {n}", { n: index + 1 })} title={t("Remove comment {n}", { n: index + 1 })}
-        onClick={() => { removeAnnotation(storeKey, item.id); setRemovedAt(index); }}><X aria-hidden="true" /></button>
-    </span>)}
+    <button type="button" className="chat-annotations-chip chat-annotations-count" aria-haspopup="menu" aria-expanded={menu !== null}
+      aria-label={t("{n} comments", { n: count })} title={t("{n} comments", { n: count })}
+      onClick={(event) => { const anchor = event.currentTarget; setMenu((open) => (open ? null : anchor)); }}>
+      <MessageSquareText aria-hidden="true" />{count}
+    </button>
+    <div ref={setScroller} className="chat-annotations-scroller">
+      {annotations.map((item, index) => <span key={item.id} className="chat-annotations-chip chat-annotation-chip">
+        <button type="button" className="chat-annotation-chip-open" data-annotation={item.id} aria-haspopup="dialog" title={item.comment || item.quote}
+          onClick={(event) => { setEditing({ id: item.id, anchor: event.currentTarget.getBoundingClientRect() }); }}>
+          <span className="chat-annotation-chip-text">{annotationChipLabel(item)}</span>
+        </button>
+        <button type="button" className="chat-annotation-chip-remove" aria-label={t("Remove comment {n}", { n: index + 1 })} title={t("Remove comment {n}", { n: index + 1 })}
+          onClick={() => { removeAnnotation(storeKey, item.id); setRemovedAt(index); }}><X aria-hidden="true" /></button>
+      </span>)}
+    </div>
+    {menu !== null && <RowMenu anchor={menu} title={t("{n} comments", { n: count })} align="start" onClose={() => { setMenu(null); }}
+      items={[{ id: "clear", label: t("Clear all"), icon: Trash2, danger: true, run: () => { setConfirming(true); } }]} />}
     {annotation !== undefined && editing !== null && <AnnotationEditDialog storeKey={storeKey} annotation={annotation} anchor={editing.anchor} onClose={closeEditor} />}
     {confirming && <ConfirmDialog title={t("Clear all comments?")} body={t("Every comment collected for this chat is removed.")} confirmLabel={t("Clear all")}
       onConfirm={async () => { clearAnnotations(storeKey); setConfirming(false); }} onClose={() => { setConfirming(false); }} />}
