@@ -61,6 +61,32 @@ export function composeWithAnnotations(text: string, list: readonly ChatAnnotati
   return typed === "" ? block : `${typed}\n\n${block}`;
 }
 
+/**
+ * What a Send from the composer carries. The annotations go only with a message delivered at once
+ * and not as an answer to the agent's open question: one held in the queue, or taken as the
+ * answer, goes as typed and they stay for the next. `sentIds` are those to mark sent once it went.
+ */
+export type AnnotatedSend =
+  | { kind: "send"; message: string; sentIds: readonly string[]; heldBack: boolean }
+  | { kind: "refuse"; reason: "question" | "queued" | "too-long" };
+
+export function planAnnotatedSend(text: string, list: readonly ChatAnnotation[], { immediate, answering, max }: { immediate: boolean; answering: boolean; max: number }): AnnotatedSend {
+  if (list.length === 0) return { kind: "send", message: text, sentIds: [], heldBack: false };
+  if (answering || !immediate) {
+    if (text.trim() === "") return { kind: "refuse", reason: answering ? "question" : "queued" };
+    return { kind: "send", message: text, sentIds: [], heldBack: true };
+  }
+  const message = composeWithAnnotations(text, list);
+  if (message.length > max) return { kind: "refuse", reason: "too-long" };
+  return { kind: "send", message, sentIds: list.map((annotation) => annotation.id), heldBack: false };
+}
+
+/** A chip's words: the comment, or the quote when it has none, on one line and cut at `max` characters. */
+export function annotationChipLabel(annotation: Pick<ChatAnnotation, "comment" | "quote">, max = 64): string {
+  const words = (annotation.comment.trim() || annotation.quote).replace(/\s+/g, " ").trim();
+  return words.length > max ? `${words.slice(0, max - 1).trimEnd()}…` : words;
+}
+
 const EMPTY: readonly ChatAnnotation[] = Object.freeze([]);
 const store = new Map<string, readonly ChatAnnotation[]>();
 /** Those already sent with a message, kept so the chat can still mark what they were on. */
