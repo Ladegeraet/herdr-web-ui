@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { addAnnotation, annotationChipLabel, clearAnnotations, composeWithAnnotations, formatAnnotationsMarkdown, getAnnotations, getSentAnnotations, markAnnotationsSent, parseAnnotationsBlock, planAnnotatedSend, removeAnnotation, subscribeAnnotations, updateAnnotation, type ChatAnnotation } from "./chatAnnotations.ts";
+import { addAnnotation, annotationChipLabel, clearAnnotations, composeWithAnnotations, formatAnnotationsMarkdown, getAnnotations, getSentAnnotations, markAnnotationsSent, parseAnnotationsBlock, sentAnnotationOf, planAnnotatedSend, removeAnnotation, subscribeAnnotations, updateAnnotation, type ChatAnnotation } from "./chatAnnotations.ts";
 
 let keys = 0;
 /** A conversation no other test touches: the store is shared by the whole module. */
@@ -302,5 +302,17 @@ describe("annotation store", () => {
     expect(getSentAnnotations(key)).toHaveLength(3);
     expect(getSentAnnotations(freshKey())).toEqual([]);
     unsubscribe();
+  });
+
+  it("finds the sent annotation a feedback card stands for, with its anchor", () => {
+    const key = freshKey();
+    const anchor = { start: 4, end: 14, exact: "Fix it now", prefix: "Ok: ", suffix: "" };
+    const first = addAnnotation(key, { source: "agent", quote: "Fix it\nnow", comment: "", turnTs: "2026-10-22T10:00:00Z", anchor });
+    addAnnotation(key, { source: "user", quote: "Fix it now", comment: "" });
+    expect(sentAnnotationOf(key, { source: "agent", quote: "Fix it now", comment: "" })).toBeUndefined();
+    markAnnotationsSent(key, getAnnotations(key).map((annotation) => annotation.id));
+    // the card reads the quote back on one line; the side must match too
+    expect(sentAnnotationOf(key, { source: "agent", quote: "Fix it now", comment: "" })).toEqual(first);
+    expect(sentAnnotationOf(key, { source: "agent", quote: "Fix it later", comment: "" })).toBeUndefined();
   });
 });

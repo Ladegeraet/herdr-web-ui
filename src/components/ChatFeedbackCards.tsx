@@ -13,16 +13,18 @@ import "./ChatFeedbackCards.css";
 
 import type { SentAnnotation } from "../lib/chatAnnotations.ts";
 import { useChatRowToggle } from "../lib/chatRowState.tsx";
+import { passageMatch } from "../lib/chatPassage.ts";
 import { annotationContext } from "../lib/chatSelection.ts";
 import { useT } from "../lib/i18n.ts";
-import { flashPassage, passageRange } from "./ChatAnnotationMarks.tsx";
+import { flashPassage } from "./ChatAnnotationMarks.tsx";
 
 /** From this many annotations on, the cards fold into one row. */
 const FOLD_AT = 3;
 
 /**
  * Finds the passage among the messages before `from` that are mounted: the latest of its side
- * whose time matches, else the latest of its side. Lights it and reports true; false when it is not there.
+ * whose time matches, else the latest of its side. Lights it and reports true; false when it is not
+ * there, or its words stand in more than one place of the first message that holds them.
  */
 export function jumpToMountedPassage(from: Element, annotation: SentAnnotation): boolean {
   const own = from.closest("[data-annotate]");
@@ -32,8 +34,10 @@ export function jumpToMountedPassage(from: Element, annotation: SentAnnotation):
     .reverse();
   const timed = annotation.context === undefined ? [] : before.filter((message) => annotationContext(message.dataset.annotateTs) === annotation.context);
   for (const message of [...timed, ...before]) {
-    const range = passageRange(message, annotation.quote);
+    const range = passageMatch(message, annotation.quote);
     if (range === null) continue;
+    // its words stand twice in that message: lighting either could be the wrong one
+    if (range === "ambiguous") return false;
     flashPassage(range);
     return true;
   }

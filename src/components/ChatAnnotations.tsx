@@ -21,6 +21,7 @@ import { MessageSquarePlus, MessageSquareText, Trash2, X } from "lucide-react";
 import "./ChatAnnotations.css";
 
 import { addAnnotation, annotationChipLabel, clearAnnotations, removeAnnotation, updateAnnotation, useChatAnnotations, type ChatAnnotation, type ChatAnnotationSource } from "../lib/chatAnnotations.ts";
+import { selectionAnchor } from "../lib/chatPassage.ts";
 import { annotationContext, annotationSource, boxesMeet, popoverPlace, triggerPlace, type Box } from "../lib/chatSelection.ts";
 import { enterSubmits, enterSubmitShortcut } from "../lib/enterSubmits.ts";
 import { useT } from "../lib/i18n.ts";
@@ -39,6 +40,9 @@ interface Selected {
   quote: string;
   context?: string;
   turnTs?: string;
+  /** the message and the selected range, for the passage's anchor once the comment is saved */
+  message: HTMLElement;
+  range: Range;
   /** the whole selection, and its last line: the popover goes under the one, Comment beside the other */
   box: Box;
   end: Box;
@@ -67,7 +71,7 @@ function readSelection(root: HTMLElement): Selected | null {
   const last = lines[lines.length - 1] ?? range.getBoundingClientRect();
   // its end scrolled out of the chat: Comment would stand over other words, or the composer
   if (!boxesMeet(boxOf(last), boxOf(root.getBoundingClientRect()))) return null;
-  return { source, quote, context: annotationContext(start.dataset.annotateTs), turnTs: start.dataset.annotateTs, box: boxOf(range.getBoundingClientRect()), end: boxOf(last) };
+  return { source, quote, context: annotationContext(start.dataset.annotateTs), turnTs: start.dataset.annotateTs, message: start, range: range.cloneRange(), box: boxOf(range.getBoundingClientRect()), end: boxOf(last) };
 }
 
 /** Docked Comment's gap to the chat's foot: clear of a phone's card that rises over the transcript (--composer-over) */
@@ -159,7 +163,10 @@ export function ChatAnnotator({ root, storeKey }: { root: HTMLElement | null; st
   const focusComposer = useCallback(() => focusMessageBox(storeKey), [storeKey]);
   const save = useCallback((comment: string) => {
     if (editing === null) return;
-    addAnnotation(storeKey, { source: editing.source, quote: editing.quote, comment, context: editing.context, turnTs: editing.turnTs }).id;
+    // the range's nodes are the message's while it stays mounted; one remounted since keeps no anchor
+    const { message, range } = editing;
+    const anchor = message.isConnected && !range.collapsed && message.contains(range.commonAncestorContainer) ? selectionAnchor(message, range) : undefined;
+    addAnnotation(storeKey, { source: editing.source, quote: editing.quote, comment, context: editing.context, turnTs: editing.turnTs, anchor });
     setEditing(null);
     setSelected(null);
     document.getSelection()?.removeAllRanges();
