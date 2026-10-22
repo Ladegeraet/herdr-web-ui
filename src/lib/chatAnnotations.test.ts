@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { addAnnotation, clearAnnotations, formatAnnotationsMarkdown, getAnnotations, removeAnnotation, subscribeAnnotations, updateAnnotation, type ChatAnnotation } from "./chatAnnotations.ts";
+import { addAnnotation, clearAnnotations, composeWithAnnotations, formatAnnotationsMarkdown, getAnnotations, getSentAnnotations, markAnnotationsSent, removeAnnotation, subscribeAnnotations, updateAnnotation, type ChatAnnotation } from "./chatAnnotations.ts";
 
 let keys = 0;
 /** A conversation no other test touches: the store is shared by the whole module. */
@@ -52,6 +52,23 @@ describe("formatAnnotationsMarkdown", () => {
       "## Annotation 1\n**On your message**\n\nComment on:\n> earlier\n\nUser comment:\n> noted\n\n"
       + "## Annotation 2\n**On agent message**\n\nComment on:\n> later\n\nUser comment:\n> noted",
     );
+  });
+});
+
+describe("composeWithAnnotations", () => {
+  const block = formatAnnotationsMarkdown([annotation({})]);
+
+  it("puts the typed text first, then the annotations", () => {
+    expect(composeWithAnnotations("  overall thoughts \n", [annotation({})])).toBe(`overall thoughts\n\n${block}`);
+  });
+
+  it("sends just the block when nothing is typed", () => {
+    expect(composeWithAnnotations("", [annotation({})])).toBe(block);
+    expect(composeWithAnnotations(" \n ", [annotation({})])).toBe(block);
+  });
+
+  it("leaves the text as it is without annotations", () => {
+    expect(composeWithAnnotations("  as typed ", [])).toBe("  as typed ");
   });
 });
 
@@ -128,5 +145,38 @@ describe("annotation store", () => {
     addAnnotation(key, { source: "agent", quote: "q", comment: "c" });
     expect(calls).toBe(5);
     unsubscribeOther();
+  });
+
+  it("moves sent annotations out of the pending ones, in their order", () => {
+    const key = freshKey();
+    let calls = 0;
+    const unsubscribe = subscribeAnnotations(key, () => { calls += 1; });
+    const first = addAnnotation(key, { source: "agent", quote: "q1", comment: "c1", turnTs: "2026-10-22T10:00:00Z" });
+    const second = addAnnotation(key, { source: "user", quote: "q2", comment: "c2" });
+    const third = addAnnotation(key, { source: "agent", quote: "q3", comment: "c3" });
+    calls = 0;
+    const emptySent = getSentAnnotations(key);
+
+    markAnnotationsSent(key, [third.id, first.id]);
+    expect(calls).toBe(1);
+    expect(getAnnotations(key)).toEqual([second]);
+    expect(getSentAnnotations(key)).toEqual([first, third]);
+    expect(getSentAnnotations(key)).not.toBe(emptySent);
+
+    // nothing pending by those ids: nothing changes
+    const sent = getSentAnnotations(key);
+    markAnnotationsSent(key, [first.id, "missing"]);
+    markAnnotationsSent(key, []);
+    expect(calls).toBe(1);
+    expect(getSentAnnotations(key)).toBe(sent);
+
+    markAnnotationsSent(key, [second.id]);
+    expect(getAnnotations(key)).toEqual([]);
+    expect(getSentAnnotations(key).map((a) => a.id)).toEqual([first.id, third.id, second.id]);
+    // clearing the pending ones keeps what was sent
+    clearAnnotations(key);
+    expect(getSentAnnotations(key)).toHaveLength(3);
+    expect(getSentAnnotations(freshKey())).toEqual([]);
+    unsubscribe();
   });
 });

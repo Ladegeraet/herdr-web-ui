@@ -305,6 +305,7 @@ const BASE: Record<string, string> = {
   // t3code ports (a)
   "Comment": "评论",
   "Comment on selection": "评论所选内容",
+  "Edit comment": "编辑评论",
   "Your comment": "你的评论",
   "What should the agent know about this?": "关于这里，智能体需要知道什么？",
   "1 annotation": "1 条批注",

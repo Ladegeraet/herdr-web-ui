@@ -301,6 +301,7 @@ const BASE: Record<string, string> = {
   // t3code ports (a)
   "Comment": "댓글",
   "Comment on selection": "선택한 부분에 댓글",
+  "Edit comment": "댓글 편집",
   "Your comment": "내 댓글",
   "What should the agent know about this?": "에이전트가 이 부분에 대해 알아야 할 점은?",
   "1 annotation": "주석 1개",

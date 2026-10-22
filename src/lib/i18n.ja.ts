@@ -303,6 +303,7 @@ const BASE: Record<string, string> = {
   // t3code ports (a)
   "Comment": "コメント",
   "Comment on selection": "選択部分にコメント",
+  "Edit comment": "コメントを編集",
   "Your comment": "コメント",
   "What should the agent know about this?": "エージェントに伝えたいことは?",
   "1 annotation": "注釈 1 件",
