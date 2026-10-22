@@ -1,0 +1,15 @@
+/* The passages annotations were made on (ChatAnnotationMarks.tsx). A highlight takes colors and
+   text decoration only. */
+
+::highlight(chat-annotation-pending) {
+  background-color: var(--accent-tint);
+  text-decoration: underline dotted var(--accent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+::highlight(chat-annotation-sent) {
+  text-decoration: underline dotted var(--text-dim);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
