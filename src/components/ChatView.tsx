@@ -19,8 +19,10 @@ import { PromptCard } from "./PromptCard.tsx";
 import { RenderBoundary } from "./RenderBoundary.tsx";
 import { loadChatTimeline, loadedChatTimeline, useChatTimeline } from "./chatTimelineLoader.ts";
 import { ChatMinimap } from "./ChatMinimap.tsx";
-import { ChatAnnotationMarks } from "./ChatAnnotationMarks.tsx";
+import { ChatAnnotationMarks, flashPassage, passageRange } from "./ChatAnnotationMarks.tsx";
+import { ChatFeedbackCards, FeedbackJumpContext, jumpToMountedPassage } from "./ChatFeedbackCards.tsx";
 import { ChatAnnotator } from "./ChatAnnotations.tsx";
+import { parseAnnotationsBlock, type SentAnnotation } from "../lib/chatAnnotations.ts";
 import { minimapTurns } from "../lib/chatMinimap.ts";
 import type { LegendListRef } from "@legendapp/list/react";
 import { continuesHistory, createChatRowSlots, growChatRowSlots, prependChatRowSlots } from "../lib/chatRows.ts";
@@ -63,6 +65,7 @@ import { linkFilePaths } from "./FilePathLink.tsx";
 import { patchText } from "../../shared/patch.ts";
 import { workRowLabel } from "../lib/workRowLabel.ts";
 import { machinePath, paneStorageId } from "../../shared/machines.ts";
+import { annotationContext } from "../lib/chatSelection.ts";
 import { chatRestoreIndex, chatTurnAnchor, drawnMatch, readChatPosition, rememberChatPosition, type ChatPosition } from "../lib/chatScrollMemory.ts";
 import { useMachineId } from "../lib/machineContext.tsx";
 import { skillSyntax } from "../../shared/skill-syntax.ts";
@@ -300,6 +303,9 @@ export interface ChatViewProps {
 
 
 /** a user turn's words, as its bubble shows them */
+/** Words to find a quote by in a turn's Markdown: no whitespace, no Markdown marks (the chat draws neither). */
+const looseWords = (text: string): string => text.replace(/[\s*_~`#>|[\]()\\]+/g, "");
+
 const userText = (turn: ConversationTurn): string => turn.parts.filter((part): part is Extract<ConversationPart, { kind: "text" }> => part.kind === "text").map((part) => part.text).join("\n\n");
 
 /** Where the first `words` in a row's message start, below the row's top, or null: not drawn in it. */
@@ -971,7 +977,10 @@ function UserImages({ paneId, parts, text }: { paneId: string; parts: Conversati
  */
 function UserMessage({ text, skills = null }: { text: string; skills?: SkillMatcher | null }) {
   const t = useT();
-  const canFold = useMemo(() => shouldFoldUserMessage(text), [text]);
+  // a feedback block sent with it shows as cards under the typed words; one that does not read back stays Markdown
+  const feedback = useMemo(() => parseAnnotationsBlock(text), [text]);
+  const typed = feedback?.text ?? text;
+  const canFold = useMemo(() => shouldFoldUserMessage(typed), [typed]);
   const [chosen, setOpen] = useChatRowToggle("fold", false);
   const open = chosen === true;
   const capped = canFold && !open;
@@ -1002,10 +1011,11 @@ function UserMessage({ text, skills = null }: { text: string; skills?: SkillMatc
     if (node && view && node.getBoundingClientRect().top < view.getBoundingClientRect().top) node.scrollIntoView({ block: "start" });
   }, [open]);
   return <div ref={card} className={`chat-bubble${capped ? " is-capped" : ""}${clipped ? " is-folded" : ""}`}>
-    <div ref={body} className="chat-bubble-body"><Markdown skills={skills}>{text}</Markdown></div>
+    {typed !== "" && <div ref={body} className="chat-bubble-body"><Markdown skills={skills}>{typed}</Markdown></div>}
     {(open || clipped) && <div className="chat-bubble-foot">
       <button type="button" className="chat-bubble-fold" aria-expanded={open} onClick={toggle}>{open ? t("Show less") : t("Show full message")}</button>
     </div>}
+    {feedback !== null && <ChatFeedbackCards annotations={feedback.annotations} />}
   </div>;
 }
 
@@ -2857,6 +2867,34 @@ export const ChatView = memo(function ChatView({ paneId, presentationKey, finish
     if (commandScreenClosed(peek, agent, at, turns)) onCommandScreenClosed(peek);
   }, [peek, outcomes, turns, agent, onCommandScreenClosed]);
   const outcomeActions = useMemo((): OutcomeActions => ({ answer: promptUp ? focusPrompt : null, terminal: onOpenTerminal ?? null, commands }), [promptUp, focusPrompt, onOpenTerminal, commands]);
+  // a sent card's quote: its passage when mounted, else the turn it is in, brought into the list's window first
+  const timelineRowsRef = useRef(timelineRows);
+  timelineRowsRef.current = timelineRows;
+  const jumpToPassage = useCallback((from: Element, annotation: SentAnnotation): void => {
+    if (jumpToMountedPassage(from, annotation)) return;
+    const turns = shownTurnsRef.current;
+    const fromTs = from.closest<HTMLElement>("[data-annotate-ts]")?.dataset.annotateTs;
+    const end = fromTs === undefined ? -1 : turns.findIndex((turn) => turn.ts === fromTs);
+    const needle = looseWords(annotation.quote);
+    if (end < 0 || needle === "") return;
+    const role = annotation.source === "agent" ? "assistant" : "user";
+    const target = turns.slice(0, end).reverse().find((turn) => turn.role === role && turn.ts !== null
+      && (annotation.context === undefined || annotationContext(turn.ts) === annotation.context)
+      && looseWords(role === "user" ? parseAnnotationsBlock(userText(turn))?.text ?? userText(turn) : userText(turn)).includes(needle));
+    const ts = target?.ts;
+    const row = timelineRowsRef.current.findIndex((item) => item.turn === target);
+    if (target === undefined || !ts || row < 0) return;
+    jumpToTurn(row);
+    // the row mounts after the list scrolled there: look for its words for a few frames
+    let frames = 0;
+    const look = (): void => {
+      const message = annotateRoot?.querySelector(`[data-annotate-ts="${CSS.escape(ts)}"]`);
+      const range = message ? passageRange(message, annotation.quote) : null;
+      if (range !== null) flashPassage(range);
+      else if (++frames < 30) requestAnimationFrame(look);
+    };
+    requestAnimationFrame(look);
+  }, [annotateRoot, jumpToTurn]);
   const renderTurn = useCallback((row: ChatRow) => {
     if (row.turn === null) return <OutcomeRow outcome={row.outcome} actions={outcomeActions} skills={skillMatcher} />;
     const { turn } = row;
@@ -2938,7 +2976,7 @@ export const ChatView = memo(function ChatView({ paneId, presentationKey, finish
   </>;
   const jump = newMessages ? <button type="button" className="btn chat-new-messages chat-virtual-jump" onClick={scrollToBottom}>{t("New messages")} <ArrowDown aria-hidden="true" /></button>
     : away && <button type="button" className="btn chat-new-messages chat-virtual-jump is-icon" aria-label={t("Jump to latest")} title={t("Jump to latest")} onClick={scrollToBottom}><ArrowDown aria-hidden="true" /></button>;
-  return <ChatMarkdownImages paneId={paneId} cwd={cwd} connected={connected} onOpen={openMarkdownImage}><FileNameLookupContext.Provider value={fileNames}><ChatPaneContext.Provider value={paneId}><ChatHistoryContext.Provider value={historyId ?? ""}><ImageViewerContext.Provider value={openViewer}><ToolPathRootContext.Provider value={toolPathRoot(cwd)}>
+  return <ChatMarkdownImages paneId={paneId} cwd={cwd} connected={connected} onOpen={openMarkdownImage}><FileNameLookupContext.Provider value={fileNames}><ChatPaneContext.Provider value={paneId}><ChatHistoryContext.Provider value={historyId ?? ""}><ImageViewerContext.Provider value={openViewer}><ToolPathRootContext.Provider value={toolPathRoot(cwd)}><FeedbackJumpContext.Provider value={jumpToPassage}>
     {/* a reader away from the end has not seen the answer a finish lands there: presented only at the end */}
     <div className="chat-frame" data-pane-content={active && visible && !covered && connected && !ended && loaded && error === null && !away && !newMessages
       && endPresentation?.state === state && endPresentation.key === presentationKey
@@ -3005,5 +3043,5 @@ export const ChatView = memo(function ChatView({ paneId, presentationKey, finish
   <ChatAnnotationMarks root={annotateRoot} storeKey={paneStorageId(machineId, paneId)} />
   {viewer !== null && <ImageLightbox images={viewer.images} index={viewer.index} onClose={closeViewer} />}
   {searching && <ConversationSearch paneId={paneId} agent={agent} historyId={historyId} title={title} onClose={closeSearch} onPick={revealTurn} />}
-  </ToolPathRootContext.Provider></ImageViewerContext.Provider></ChatHistoryContext.Provider></ChatPaneContext.Provider></FileNameLookupContext.Provider></ChatMarkdownImages>;
+  </FeedbackJumpContext.Provider></ToolPathRootContext.Provider></ImageViewerContext.Provider></ChatHistoryContext.Provider></ChatPaneContext.Provider></FileNameLookupContext.Provider></ChatMarkdownImages>;
 });
