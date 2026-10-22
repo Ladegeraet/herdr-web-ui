@@ -22,6 +22,7 @@ import { useMachineApi, useMachineId } from "../lib/machineContext.tsx";
 import { composerDrafts } from "../lib/composerDraft.ts";
 import { commentsWait, holdsQuoteLine, messageWithComments, replyComments, replyCommentsKey, type ReplyComment } from "../lib/replyComments.ts";
 import { ReplyCommentsChip, useReplyComments } from "./ReplyComments.tsx";
+import { markAnnotationsSent, planAnnotatedSend, useChatAnnotations } from "../lib/chatAnnotations.ts";
 import { paneStorageId } from "../../shared/machines.ts";
 import {
   agentDisplayLabel,
@@ -31,6 +32,7 @@ import {
   COMMAND_GROUPS,
   commandGroup,
   commandsForTrigger,
+  composerDelivery,
   composerModelDraw,
   composerSendShown,
   composerStatusCompact,
@@ -64,6 +66,7 @@ import { composerUsage, formatPercent, formatResetIn, HIGH_PERCENT, meterPercent
 import { AgentMark } from "./AgentMark.tsx";
 import { Artifacts } from "./Artifacts.tsx";
 import { BackgroundTasks } from "./BackgroundTasks.tsx";
+import { ChatAnnotationChips } from "./ChatAnnotations.tsx";
 import { MicButton, VoiceRecordingPill, useDictation } from "./VoiceInput.tsx";
 import { usePaneCommands } from "../lib/usePaneCommands.ts";
 import { useT } from "../lib/i18n.ts";
@@ -101,9 +104,6 @@ export interface ComposerProps {
   greeting?: ReactNode;
   /** the pane's notices over the input card (PaneTerminal builds them): rows of its own, above the replies */
   notices?: ReactNode;
-  /** the chat's collected annotations (ChatAnnotations.tsx): a chip over the card that, unlike a
-   * notice, leaves a phone's card floating over the transcript */
-  annotations?: ReactNode;
   /** the connection's confirmed role; PaneTerminal mounts no composer for observers */
   role?: ClientRole;
   /** a terminal command's peek has the pane: the composer stays, with its draft, but takes no input */
@@ -256,7 +256,6 @@ export function Composer({
   restored = null,
   greeting = null,
   notices = null,
-  annotations = null,
   role = "interact",
   inert = false,
   onOpenHistory,
@@ -301,6 +300,12 @@ export function Composer({
   const fileRequest = useRef(0);
   const draftKey = `ovis:composer-draft:${paneStorageId(machineId, paneId)}`;
   const { text, sending } = useSyncExternalStore(composerDrafts.subscribe, () => composerDrafts.read(draftKey));
+  // the comments on the chat's text (ChatAnnotations.tsx) go out with the next message, as an attachment does
+  const annotationKey = paneStorageId(machineId, paneId);
+  const annotations = useChatAnnotations(annotationKey);
+  const annotationsRef = useRef(annotations);
+  annotationsRef.current = annotations;
+  const sendable = text.trim().length > 0 || annotations.length > 0;
   const setText = useCallback((value: string | ((previous: string) => string)) => composerDrafts.set(draftKey, value), [draftKey]);
   // comments on the agent's replies (#511) go first in the next message, unless it is a slash command or an answer
   const commentsKey = replyCommentsKey(paneStorageId(machineId, paneId));
@@ -824,11 +829,19 @@ export function Composer({
    * `sendAnyway`: the user saw the box a DraftRefusal showed and sends over it. */
   const send = useCallback((clearDraft?: string, sendAnyway = false): boolean => {
     if (composingRef.current) return false;
-    if (role === "observe" || !connected || uploading || roomless || sending || (text.trim().length === 0 && carried.length === 0)) return false;
+    if (role === "observe" || !connected || uploading || roomless || sending || (!sendable && carried.length === 0)) return false;
     if (terminalTyped?.name === "resume" && onOpenHistory) { setMenuDismissed(true); onOpenHistory(); return true; }
     const message = carried.length > 0 ? messageWithComments(carried, text) : text;
     if (message.length > MAX_COMPOSER_CHARS) { setNote(t("Too long with the comments: remove a comment or shorten the message.")); return false; }
     const sentComments = carried;
+    // the box's text is what the draft settles; the message sent can carry the annotations after it
+    const plan = planAnnotatedSend(message, annotations, { immediate: composerDelivery(agent, agentStatus) === "immediate", answering: answerHint !== null, max: MAX_COMPOSER_CHARS });
+    if (plan.kind === "refuse") {
+      setNote(plan.reason === "too-long" ? t("Too long to send with your comments: a message holds {max} characters.", { max: formatChars(MAX_COMPOSER_CHARS) })
+        : plan.reason === "question" ? t("Your comments do not go with an answer to the agent's question. Answer it first, then send them.")
+        : t("Your comments wait until the agent is done: send them once it stops working."));
+      return true;
+    }
     const sent = text;
     const sentAttachments = attachments;
     let sendId: number | undefined;
@@ -837,6 +850,8 @@ export function Composer({
       const acknowledged = result === true ? composerDrafts.settle(draftKey, sent, sendId) : null;
       // the comments it carried are sent: any written meanwhile wait for the next message
       if (result === true && sentComments.length > 0) replyComments.removeSent(commentsKey, sentComments);
+      // only those that went: one added while it was on its way stays for the next message
+      if (acknowledged !== null) markAnnotationsSent(annotationKey, plan.sentIds);
       if (!mounted.current) return;
       if (typeof result !== "boolean") setNote(result);
       if (acknowledged === null) return;
@@ -846,7 +861,8 @@ export function Composer({
       setCaret(rest.length);
       textRef.current = rest;
       caretRef.current = rest.length;
-      setNote(edited ? t("Sent as it was. Your changes made while it was sending stayed here and were not sent.") : null);
+      setNote(edited ? t("Sent as it was. Your changes made while it was sending stayed here and were not sent.")
+        : plan.heldBack ? t("Sent without your comments: they stay for your next message.") : null);
       for (const attachment of sentAttachments) { URL.revokeObjectURL(attachment.previewUrl); placedMentions.current.delete(attachment.id); }
       setAttachments((current) => current.filter((attachment) => !sentAttachments.includes(attachment)));
     };
@@ -859,8 +875,8 @@ export function Composer({
     dictation.forget();
     try {
       // a message with comments goes only to an agent: a shell would read `> quote` as a redirect
-      const agentOnly = sentComments.length > 0 || composerDrafts.isAgentOnly(draftKey);
-      const result = agentOnly ? onSend(message, clearDraft, sendAnyway, true) : onSend(message, clearDraft, sendAnyway);
+      const agentOnly = sentComments.length > 0 || plan.sentIds.length > 0 || composerDrafts.isAgentOnly(draftKey);
+      const result = agentOnly ? onSend(plan.message, clearDraft, sendAnyway, true) : onSend(plan.message, clearDraft, sendAnyway);
       if (!(result instanceof Promise)) { settle(result); ended(); return true; }
       void result.then(settle).catch(() => { if (mounted.current) setNote(t("Not confirmed. Check the terminal before sending again.")); }).finally(ended);
     } catch {
@@ -868,7 +884,7 @@ export function Composer({
       if (mounted.current) setNote(t("Not confirmed. Check the terminal before sending again."));
     }
     return true;
-  }, [attachments, carried, commentsKey, connected, dictation.forget, draftKey, onOpenHistory, onSend, role, roomless, sending, t, terminalTyped, text, uploading]);
+  }, [agent, agentStatus, annotationKey, annotations, answerHint, attachments, carried, commentsKey, connected, dictation.forget, draftKey, onOpenHistory, onSend, role, roomless, sendable, sending, t, terminalTyped, text, uploading]);
   const sendRef = useRef(send);
   sendRef.current = send;
   const connectedRef = useRef(connected);
@@ -927,7 +943,7 @@ export function Composer({
     clearCommitWait();
     setNote(null);
     // a send that cannot go out (offline, uploading) says so instead of leaving the tap without a word
-    if (!sendRef.current() && textRef.current.trim().length > 0) {
+    if (!sendRef.current() && (textRef.current.trim().length > 0 || annotationsRef.current.length > 0)) {
       setNote(connectedRef.current ? t("Not sent. Send it again.") : t("Not sent: the terminal is disconnected."));
     }
   }, [awaitCommit, clearCommitWait, t]);
@@ -1118,7 +1134,7 @@ export function Composer({
     <div className={`composer${notices ? " has-notices" : ""}`} role="group" aria-label={t("Message composer")} data-dictating={dictation.voice.state !== "idle" ? "" : undefined} inert={inert || undefined}>
       {greeting}
       {notices}
-      {annotations}
+      <ChatAnnotationChips storeKey={annotationKey} />
       {/* no Tab key on a phone: the suggestion can be a chip there that fills the box, when Settings asks for it */}
       {settings.suggestionChip && offered !== null && text === "" && (
         <div className="composer-quick composer-suggestion-row">
@@ -1165,7 +1181,7 @@ export function Composer({
             ? offersRetry(note.failure) && <button type="button" className="composer-note-action" disabled={!connected} onClick={() => retryUpload(note.attachment)}>{t("Try again")}</button>
             : <div className="composer-note-actions">
               {"draft" in note && <button type="button" className="composer-note-action" disabled={!connected || sending} onClick={() => sendDraft(note.draft)}>{t("Send it")}</button>}
-              <button type="button" className="composer-note-action" disabled={!connected || uploading || roomless !== undefined || sending || (text.trim().length === 0 && carried.length === 0)}
+              <button type="button" className="composer-note-action" disabled={!connected || uploading || roomless !== undefined || sending || (!sendable && carried.length === 0)}
                 onClick={() => "draft" in note ? send(note.draft) : send(undefined, true)}>{"draft" in note ? t("Clear it and send") : t("Send anyway")}</button>
             </div>)}
         </div>
@@ -1486,7 +1502,7 @@ export function Composer({
               aria-label={t("Send message")}
               title={sending ? t("Sending…") : t("Send message")}
               aria-busy={sending || undefined}
-              disabled={!connected || uploading || roomless !== undefined || sending || (text.trim().length === 0 && carried.length === 0)}
+              disabled={!connected || uploading || roomless !== undefined || sending || (!sendable && carried.length === 0)}
               // focus stays in the text box: leaving it closes the soft keyboard and moves the button
               // out from under the tap before the click lands
               onPointerDown={(event) => event.preventDefault()}
