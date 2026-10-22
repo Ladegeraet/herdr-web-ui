@@ -86,23 +86,68 @@
 }
 
 /* the comments for the next message: chips inside the composer, over the card, as attachments are
-   (a row of its own, not a notice) */
+   (a row of its own, not a notice). Always one line high: the count stays put, the chips after it
+   scroll sideways */
 .chat-annotations-bar {
   flex: none;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  /* with the scroller's own padding, the chips' gap */
+  gap: var(--space-1);
   /* the card's column, as the composer's notices take it (Composer.css) */
   width: min(100%, var(--chat-w));
   margin: 0 auto var(--space-2);
 }
 
+.chat-annotations-scroller {
+  --chips-fade: var(--space-6);
+  --chips-fade-start: 0px;
+  --chips-fade-end: 0px;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  /* room for the chips' shadow and focus ring, which the scroller would cut off */
+  padding: var(--space-1);
+  margin: calc(var(--space-1) * -1) calc(var(--space-1) * -1) calc(var(--space-1) * -1) 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: var(--space-1);
+  scrollbar-width: none;
+}
+
+.chat-annotations-scroller::-webkit-scrollbar {
+  display: none;
+}
+
+/* the edge that hides more chips fades out, as the key bar's does (KeyBar.css) */
+.chat-annotations-scroller[data-overflow-start],
+.chat-annotations-scroller[data-overflow-end] {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    currentColor var(--chips-fade-start),
+    currentColor calc(100% - var(--chips-fade-end)),
+    transparent
+  );
+}
+
+.chat-annotations-scroller[data-overflow-start] {
+  --chips-fade-start: var(--chips-fade);
+}
+
+.chat-annotations-scroller[data-overflow-end] {
+  --chips-fade-end: var(--chips-fade);
+}
+
 .chat-annotations-chip {
+  flex: none;
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  max-width: 100%;
   min-width: 0;
   min-height: var(--control-h);
   padding: 0 var(--space-3);
@@ -114,6 +159,7 @@
   color: var(--text-strong);
   font: inherit;
   font-size: var(--fs-sm);
+  white-space: nowrap;
 }
 
 button.chat-annotations-chip {
@@ -127,9 +173,20 @@ button.chat-annotations-chip {
   color: var(--accent);
 }
 
-/* one comment: its words open it, the X removes it */
+/* how many there are, and the menu with Clear all */
+.chat-annotations-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-annotations-count[aria-expanded="true"] {
+  border-color: var(--border-strong);
+}
+
+/* one comment, on one line however long: its words open it, the X removes it */
 .chat-annotation-chip {
+  max-width: 320px;
   padding: 0 0 0 var(--space-3);
+  scroll-snap-align: start;
 }
 
 .chat-annotation-chip-open,
@@ -146,8 +203,8 @@ button.chat-annotations-chip {
 }
 
 .chat-annotation-chip-open {
-  gap: var(--space-1);
   min-width: 0;
+  overflow: hidden;
 }
 
 .chat-annotation-chip-text {
@@ -172,8 +229,10 @@ button.chat-annotations-chip {
   color: inherit;
 }
 
-.chat-annotations-clear {
-  font-size: var(--fs-sm);
+@media (max-width: 640px) {
+  .chat-annotation-chip {
+    max-width: 240px;
+  }
 }
 
 @media (pointer: coarse) {

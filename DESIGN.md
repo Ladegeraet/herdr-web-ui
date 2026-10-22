@@ -2160,10 +2160,14 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
 - A selection whose end scrolled out of the chat offers nothing. Collected comments wait as chips in
   the composer, a row on the card's column (not a notice, so a phone's card keeps floating over the
   transcript), opaque `--bg-elevated` pills like an attachment: the comment (or the quote without one)
-  on one line, cut at 64 characters, and an X. A tap opens the same editor on it, with Delete. Past
-  three they fold into one "{n} comments" chip (a chevron down while folded, up while open) that
-  opens them, beside a Clear all chip (through the confirm). With a mouse, the focus goes on to the
-  new chip after a save, and back where it came from after a cancel or delete. They are held per pane, in memory only (lib/chatAnnotations.ts).
+  on one line, cut at 64 characters and ellipsized at the chip's width (320px, 240px on a phone),
+  and an X. A tap opens the same editor on it, with Delete. However many there are, the row is one
+  line high, as the Claude app's attachment row is: a count chip (the comment icon and the number)
+  stays at its start, and the chips after it scroll sideways, snapping to a chip, with no scrollbar
+  (a mouse wheel turns the row) and the edge that hides more faded out, as the key bar's is. The
+  count opens a small menu (RowMenu, a sheet on a phone) with Clear all, through the confirm; a new
+  chip scrolls into view at the row's end. With a mouse, the focus goes on to the new chip after a
+  save, and back where it came from after a cancel or delete. They are held per pane, in memory only (lib/chatAnnotations.ts).
 - The composer's Send carries them, as an attachment: the typed text first, then the annotations'
   Markdown block in Plannotator's feedback shape (`# Message Feedback`, "I've reviewed this
   conversation and have N piece(s) of feedback:", one `## N. (agent message|your message, HH:MM)
