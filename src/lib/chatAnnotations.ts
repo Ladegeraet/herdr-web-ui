@@ -14,6 +14,8 @@ export interface ChatAnnotation {
   comment: string;
   /** Where the quote came from, e.g. "message 4 · 14:32". */
   context?: string;
+  /** The `data-annotate-ts` of the message the quote came from, to find it again in the chat. */
+  turnTs?: string;
   /** Reserved; no UI sets it yet. */
   tag?: string;
   createdAt: number;
@@ -51,8 +53,18 @@ export function formatAnnotationsMarkdown(list: readonly ChatAnnotation[]): stri
     .join("\n\n");
 }
 
+/** The message as sent: the typed text first, then the annotations' block; `text` as is without any. */
+export function composeWithAnnotations(text: string, list: readonly ChatAnnotation[]): string {
+  if (list.length === 0) return text;
+  const block = formatAnnotationsMarkdown(list);
+  const typed = text.trim();
+  return typed === "" ? block : `${typed}\n\n${block}`;
+}
+
 const EMPTY: readonly ChatAnnotation[] = Object.freeze([]);
 const store = new Map<string, readonly ChatAnnotation[]>();
+/** Those already sent with a message, kept so the chat can still mark what they were on. */
+const sentStore = new Map<string, readonly ChatAnnotation[]>();
 const listeners = new Map<string, Set<() => void>>();
 let lastId = 0;
 
@@ -93,6 +105,20 @@ export function clearAnnotations(key: string): void {
   publish(key, EMPTY);
 }
 
+/** Moves `ids` from the pending annotations to the sent ones, once their message went out. */
+export function markAnnotationsSent(key: string, ids: readonly string[]): void {
+  const current = getAnnotations(key);
+  const moving = current.filter((annotation) => ids.includes(annotation.id));
+  if (moving.length === 0) return;
+  sentStore.set(key, [...getSentAnnotations(key), ...moving]);
+  publish(key, current.filter((annotation) => !ids.includes(annotation.id)));
+}
+
+/** The same array until the conversation's sent annotations change. */
+export function getSentAnnotations(key: string): readonly ChatAnnotation[] {
+  return sentStore.get(key) ?? EMPTY;
+}
+
 export function subscribeAnnotations(key: string, listener: () => void): () => void {
   let set = listeners.get(key);
   if (!set) {
@@ -110,4 +136,9 @@ export function subscribeAnnotations(key: string, listener: () => void): () => v
 export function useChatAnnotations(key: string): readonly ChatAnnotation[] {
   const subscribe = useCallback((listener: () => void) => subscribeAnnotations(key, listener), [key]);
   return useSyncExternalStore(subscribe, () => getAnnotations(key));
+}
+
+export function useSentAnnotations(key: string): readonly ChatAnnotation[] {
+  const subscribe = useCallback((listener: () => void) => subscribeAnnotations(key, listener), [key]);
+  return useSyncExternalStore(subscribe, () => getSentAnnotations(key));
 }
