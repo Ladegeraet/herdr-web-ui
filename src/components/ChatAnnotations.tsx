@@ -166,6 +166,8 @@ export function ChatAnnotator({ root, storeKey }: { root: HTMLElement | null; st
       if (action === null) return;
       const target = event.target instanceof Element ? event.target : null;
       if (target?.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return;
+      // a dialog over the chat (an image's lightbox) has the keys, not the selection behind it
+      if (document.querySelector("[aria-modal='true']") !== null) return;
       event.preventDefault();
       if (action === "comment") setEditing(selected);
       else save(selected, "", action);
@@ -195,9 +197,9 @@ export function ChatAnnotator({ root, storeKey }: { root: HTMLElement | null; st
           {!coarse && <kbd className="kbd" aria-hidden="true">C</kbd>}
         </button>
         <button type="button" className="chat-annotate-action chat-annotate-verdict" data-kind="approve" aria-label={t("Agree")} title={coarse ? t("Agree") : `${t("Agree")} (Y)`}
-          aria-keyshortcuts={coarse ? undefined : "Y +"} {...press(() => { save(selected, "", "approve"); })}><Check aria-hidden="true" /></button>
+          aria-keyshortcuts={coarse ? undefined : "Y Plus"} {...press(() => { save(selected, "", "approve"); })}><Check aria-hidden="true" /></button>
         <button type="button" className="chat-annotate-action chat-annotate-verdict" data-kind="reject" aria-label={t("Strike")} title={coarse ? t("Strike") : `${t("Strike")} (X)`}
-          aria-keyshortcuts={coarse ? undefined : "X -"} {...press(() => { save(selected, "", "reject"); })}><X aria-hidden="true" /></button>
+          aria-keyshortcuts={coarse ? undefined : "X Minus"} {...press(() => { save(selected, "", "reject"); })}><X aria-hidden="true" /></button>
       </div>,
       document.body,
     )}
