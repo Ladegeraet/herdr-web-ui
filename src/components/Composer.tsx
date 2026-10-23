@@ -842,9 +842,9 @@ export function Composer({
     // the box's text is what the draft settles; the message sent can carry the annotations after it
     const plan = planAnnotatedSend(message, annotations, { immediate: composerDelivery(agent, agentStatus) === "immediate", answering: answerHint !== null, max: MAX_COMPOSER_CHARS });
     if (plan.kind === "refuse") {
-      if (plan.reason === "too-long") setNote(t("Too long to send with your comments: a message holds {max} characters.", { max: formatChars(MAX_COMPOSER_CHARS) }));
-      else tell(plan.reason === "question" ? t("Your comments do not go with an answer to the agent's question. Answer it first, then send them.")
-        : t("Your comments wait until the agent is done: send them once it stops working."));
+      if (plan.reason === "too-long") setNote(t("Too long to send with your notes: a message holds {max} characters.", { max: formatChars(MAX_COMPOSER_CHARS) }));
+      else tell(plan.reason === "question" ? t("Your notes do not go with an answer to the agent's question. Answer it first, then send them.")
+        : t("Your notes wait until the agent is done: send them once it stops working."));
       return true;
     }
     const sent = text;
@@ -867,7 +867,7 @@ export function Composer({
       textRef.current = rest;
       caretRef.current = rest.length;
       if (edited) setNote(t("Sent as it was. Your changes made while it was sending stayed here and were not sent."));
-      else if (plan.heldBack) tell(t("Sent without your comments: they stay for your next message."));
+      else if (plan.heldBack) tell(t("Sent without your notes: they stay for your next message."));
       else setNote(null);
       for (const attachment of sentAttachments) { URL.revokeObjectURL(attachment.previewUrl); placedMentions.current.delete(attachment.id); }
       setAttachments((current) => current.filter((attachment) => !sentAttachments.includes(attachment)));

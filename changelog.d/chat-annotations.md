@@ -10,3 +10,7 @@
   the comment waits and calmer once sent. Each passage is remembered by where it stood in the
   message, so every comment of a message is marked, including passages across file paths, inline
   code and list items, and words that repeat are never marked in the wrong place.
+- Quick verdicts on selected chat text: beside Comment, Agree (✓, or `Y`/`+`) and Strike (✕, or
+  `X`/`-`) save the passage in one tap, marked green or red and struck through. A verdict can carry
+  a comment, and the editor switches a note between comment, agree and strike. The agent receives
+  them in Plannotator's shapes ("Looks good", "Remove this").

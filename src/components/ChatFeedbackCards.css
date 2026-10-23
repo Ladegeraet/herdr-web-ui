@@ -51,7 +51,7 @@
   list-style: none;
 }
 
-/* one comment: the accent rail of a chip's icon, the quote, then the comment */
+/* one note: the accent rail of a chip's icon, the quote, then the comment */
 .chat-feedback-card {
   display: flex;
   flex-direction: column;
@@ -65,8 +65,30 @@
 }
 
 .chat-feedback-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
   color: var(--text-dim);
   font-size: var(--fs-2xs);
+}
+
+/* a verdict: its color on the rail and its icon before where it came from; a strike's quote struck through */
+.chat-feedback-card[data-kind="approve"] {
+  border-left-color: var(--status-done);
+}
+
+.chat-feedback-card[data-kind="reject"] {
+  border-left-color: var(--status-blocked);
+}
+
+.chat-feedback-meta svg {
+  flex: none;
+  width: 12px;
+  height: 12px;
+}
+
+.chat-feedback-card[data-kind="reject"] .chat-feedback-quote {
+  text-decoration: line-through;
 }
 
 /* the passage, muted on two lines at most; a tap goes to it */

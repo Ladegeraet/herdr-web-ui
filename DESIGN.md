@@ -2190,7 +2190,7 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   `--rail-w` `--accent` rail on `--bg-panel`, where it came from (`agent · 06:03`, `--fs-2xs`,
   `--text-dim`), the quote in `--text-dim` on two lines at most, and the comment below in the
   bubble's body size; a flagged passage shows only its quote. Three or more fold into one
-  "{n} comments" row with a chevron (right while folded, down while open). The block is read back
+  "{n} notes" row with a chevron (right while folded, down while open). The block is read back
   from the text alone (`parseAnnotationsBlock`), so messages from before a reload show the same;
   one that does not read back whole stays Markdown. Copy still copies the message as sent. A tap on
   a quote finds the passage in an earlier message of its side (its time first; a turn the list has
@@ -2200,9 +2200,30 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   or whose words stand twice with nothing to choose by, does nothing. Follows the Claude and Codex apps, which show what went with a message (a file, a quoted
   passage) as a compact attachment under it rather than as its text.
 - The passage a comment was made on is marked in its message with the CSS Custom Highlight API
-  (no DOM change), one highlight per state holding every passage: pending is a solid tint
-  (`color-mix` of `--accent` at 28%) with a 1px solid `--accent` underline, sent a calmer 15% tint
-  with no underline. Both read over inline code's own background, in dark and light themes.
+  (no DOM change), one highlight per state and kind holding every passage
+  (`chat-annotation-{pending|sent}-{comment|approve|reject}`; pending has priority 1 over sent's 0,
+  the flash 2): pending is a solid tint (`color-mix` of `--accent` at 28%) with a 1px solid
+  `--accent` underline, sent a calmer 15% tint with no underline. An agreement takes
+  `--status-done` the same way; a strike takes `--status-blocked` and a line-through instead of the
+  underline (1.5px pending, 1px at 60% once sent, so a sent strike still reads as struck). All
+  read over inline code's own background, in dark and light themes.
+- Verdicts (`kind` approve or reject): beside Comment the selection's pill holds two square icon
+  buttons, **Agree** (lucide `Check`, `--status-done`) and **Strike** (lucide `X`,
+  `--status-blocked`), apart by a hairline (`.chat-annotate-action.chat-annotate-verdict[data-kind]`,
+  `--control-h` square with a mouse, `--touch-target` docked on touch). One press saves the
+  passage with that verdict and no comment, with no editor, and clears the selection; with a
+  keyboard `Y` or `+` agrees and `X` or `-` strikes (`+` is read by the key it types, so it works
+  shifted on a US layout and unshifted on a German one). The editor, new or on a saved note, holds
+  a `.segmented` switch (`.chat-annotate-kinds`: Comment, Agree, Strike) over the quote, whose rail
+  takes the kind's color (a strike's quote struck through); the comment stays optional for every
+  kind. A verdict's chip starts with its icon in its color; its words are the comment, else the
+  quote. A sent card's rail and the icon before where it came from take the verdict's color, and a
+  strike's quote is struck through. The collection is counted as notes ("{n} notes", "Clear all
+  notes?"), since not every one is a comment. In the feedback block a strike is a Plannotator
+  deletion (`## N. (…) Remove this`, the quote fenced, `> I don't want this.` without a comment)
+  and an agreement Plannotator's 👍 quick label (`## N. (…) [👍 Looks good] Feedback on: "quote"`).
+  Follows Plannotator's quick labels and deletions, and the one-tap reactions of GitHub's and
+  Slack's message toolbars.
 - A passage is anchored when its comment is saved, from the selection's DOM Range (lib/chatHighlights.ts,
   lib/chatPassage.ts): its start and end in the message's normalized text (text nodes joined, each
   whitespace run one space, one space at each block's edge), its words there and about 32
