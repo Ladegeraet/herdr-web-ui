@@ -37,18 +37,18 @@ function tobisMessage(work = "Read 3 files"): Model {
   return el("article",
     el("section.work-block", el("button.work-block-head", work)),
     el("div.markdown",
-      el("p", "Hier die Prüfung:"),
-      el("p", el("strong", "182667 – Zoom bleibt nach Typwechsel stehen (", fileLink("pdf_main_view.dart:56"), ") – stimmt, hohe Priorität")),
-      el("ul", el("li", "Ursache: ", el("code", "_zoom"), " wird in ", el("code", "didUpdateWidget"), " nicht zurückgesetzt"), el("li", "Fix: ", el("code", "resetZoom()"), " aufrufen")),
-      el("p", el("strong", "182668 – Erste Zeile sitzt tiefer, wenn der Text mit einer Überschrift beginnt (", fileLink("vetos_rich_text_field.dart:149"), ") – stimmt")),
-      el("ul", el("li", el("code", "TextAlign"), " und ", el("code", "strutStyle"), " prüfen"), el("li", "siehe ", el("code", "line_height.dart"))),
+      el("p", "Here is the review:"),
+      el("p", el("strong", "182667 – Zoom stays after a type change (", fileLink("pdf_main_view.dart:56"), ") – confirmed, high priority")),
+      el("ul", el("li", "Cause: ", el("code", "_zoom"), " is not reset in ", el("code", "didUpdateWidget")), el("li", "Fix: call ", el("code", "resetZoom()"))),
+      el("p", el("strong", "182668 – First line sits lower when the text starts with a heading (", fileLink("vetos_rich_text_field.dart:149"), ") – confirmed")),
+      el("ul", el("li", el("code", "TextAlign"), " and ", el("code", "strutStyle"), " checked"), el("li", "see ", el("code", "line_height.dart"))),
     ),
     el("div.chat-turn-meta", el("button.chat-meta-btn", "MD"), el("button.chat-meta-btn", "TXT")),
   );
 }
 
-const FIRST = "182667 – Zoom bleibt nach Typwechsel stehen (pdf_main_view.dart:56) – stimmt, hohe Priorität";
-const SECOND = "182668 – Erste Zeile sitzt tiefer, wenn der Text mit einer Überschrift beginnt (vetos_rich_text_field.dart:149) – stimmt";
+const FIRST = "182667 – Zoom stays after a type change (pdf_main_view.dart:56) – confirmed, high priority";
+const SECOND = "182668 – First line sits lower when the text starts with a heading (vetos_rich_text_field.dart:149) – confirmed";
 
 describe("Tobi's two annotated lines", () => {
   it("were not found while the walk left out the file path a quote crosses", () => {
@@ -58,7 +58,7 @@ describe("Tobi's two annotated lines", () => {
     expect(findQuote(pieces, FIRST)).toBeNull();
     expect(findQuote(pieces, SECOND)).toBeNull();
     // a quote that stops before the path was found, so one line of two showed a mark
-    expect(findQuote(pieces, "182668 – Erste Zeile sitzt tiefer")).not.toBeNull();
+    expect(findQuote(pieces, "182668 – First line sits lower")).not.toBeNull();
   });
 
   it("are both found and marked once file paths count as words", () => {
@@ -79,8 +79,8 @@ describe("Tobi's two annotated lines", () => {
   it("anchors two passages of one message, each to its own place", () => {
     const { pieces } = textPieces(tobisMessage(), controls);
     const lines = [FIRST, SECOND].map((quote) => {
-      const from = pieces.indexOf(quote.slice(0, 6) === "182667" ? "182667 – Zoom bleibt nach Typwechsel stehen (" : "182668 – Erste Zeile sitzt tiefer, wenn der Text mit einer Überschrift beginnt (");
-      const to = pieces.findIndex((piece, index) => index > from && piece !== null && piece.startsWith(") – stimmt"));
+      const from = pieces.indexOf(quote.slice(0, 6) === "182667" ? "182667 – Zoom stays after a type change (" : "182668 – First line sits lower when the text starts with a heading (");
+      const to = pieces.findIndex((piece, index) => index > from && piece !== null && piece.startsWith(") – confirmed"));
       return { quote, anchor: anchorFor(pieces, from, 0, to, (pieces[to] as string).length) };
     });
     const flat = flattenText(pieces);
@@ -93,14 +93,14 @@ describe("Tobi's two annotated lines", () => {
 
   it("finds an anchored passage again after the text before it changed", () => {
     const { pieces } = textPieces(tobisMessage(), controls);
-    const from = pieces.indexOf("182667 – Zoom bleibt nach Typwechsel stehen (");
+    const from = pieces.indexOf("182667 – Zoom stays after a type change (");
     const anchor = anchorFor(pieces, from, 9, from + 1, 13);
-    expect(anchor?.exact).toBe("Zoom bleibt nach Typwechsel stehen (pdf_main_view");
+    expect(anchor?.exact).toBe("Zoom stays after a type change (pdf_main_view");
     // the work block opened and its rows count now: the saved offsets point elsewhere
     const opened = el("article", el("p", "Read src/pdf_main_view.dart and two more files"), ...tobisMessage().childNodes);
     const after = textPieces(opened, controls).pieces;
-    const span = resolvePassage(flattenText(after), "Zoom bleibt nach Typwechsel stehen (pdf_main_view", anchor ?? undefined);
-    expect(spanText(after, span as TextSpan)).toBe("Zoom bleibt nach Typwechsel stehen (pdf_main_view");
+    const span = resolvePassage(flattenText(after), "Zoom stays after a type change (pdf_main_view", anchor ?? undefined);
+    expect(spanText(after, span as TextSpan)).toBe("Zoom stays after a type change (pdf_main_view");
   });
 });
 
