@@ -2183,7 +2183,10 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   and they leave only once it is confirmed (one added meanwhile stays). A message queued while the
   agent works, or taken as the answer to its open question, goes without them with a calm note
   (`--bg-elevated`, not the failure's tint), and they stay; with nothing typed it is refused with
-  that note. A block too long for one message is
+  that note. They go only to an agent and only with a plain prompt: in a pane where no agent runs
+  (a shell, or after the agent exited), with a slash command, a `!` shell escape or a `#` memory
+  line, and with Send anyway over a screen still open, the typed text goes alone and they stay,
+  since a shell would take the block's `>` lines as redirects and run its fences and `$(…)`. A block too long for one message is
   refused.
 - In the chat, a user message ending in that block shows the typed words as usual and the block as
   small cards under them, inside the bubble (`.chat-feedback-*`, ChatFeedbackCards.tsx): a
