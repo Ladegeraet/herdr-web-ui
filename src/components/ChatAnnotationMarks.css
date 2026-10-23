@@ -1,16 +1,40 @@
 /* The passages annotations were made on (ChatAnnotationMarks.tsx). A highlight takes colors and
-   text decoration only. The tints are mixed from the accent, strong enough to read over inline
-   code's own background in every theme. */
+   text decoration only. The tints are mixed from the accent (a comment), the done green (an
+   agreement) or the blocked red (a strike, struck through as well), strong enough to read over
+   inline code's own background in every theme. */
 
-::highlight(chat-annotation-pending) {
+::highlight(chat-annotation-pending-comment) {
   background-color: color-mix(in srgb, var(--accent) 28%, transparent);
   text-decoration: underline solid var(--accent);
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
 }
 
-::highlight(chat-annotation-sent) {
+::highlight(chat-annotation-pending-approve) {
+  background-color: color-mix(in srgb, var(--status-done) 28%, transparent);
+  text-decoration: underline solid var(--status-done);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+::highlight(chat-annotation-pending-reject) {
+  background-color: color-mix(in srgb, var(--status-blocked) 28%, transparent);
+  text-decoration: line-through solid var(--status-blocked);
+  text-decoration-thickness: 1.5px;
+}
+
+::highlight(chat-annotation-sent-comment) {
   background-color: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+::highlight(chat-annotation-sent-approve) {
+  background-color: color-mix(in srgb, var(--status-done) 15%, transparent);
+}
+
+::highlight(chat-annotation-sent-reject) {
+  background-color: color-mix(in srgb, var(--status-blocked) 15%, transparent);
+  text-decoration: line-through solid color-mix(in srgb, var(--status-blocked) 60%, transparent);
+  text-decoration-thickness: 1px;
 }
 
 /* a passage a sent feedback card jumped to, lit for a moment */
