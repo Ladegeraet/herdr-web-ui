@@ -70,8 +70,9 @@
   color: var(--status-blocked);
 }
 
+/* its border is inside the height: the buttons within still get the whole touch target */
 .chat-annotate-trigger.is-docked {
-  height: var(--touch-target);
+  height: calc(var(--touch-target) + 2 * var(--hairline));
 }
 
 .chat-annotate-trigger.is-docked .chat-annotate-action {
@@ -143,6 +144,13 @@
 
 .chat-annotate-kinds > button[aria-pressed="true"] .chat-annotation-kind-icon[data-kind="reject"] {
   color: var(--status-blocked);
+}
+
+/* a finger's reach: each option is the touch target's height, not only its expander */
+@media (pointer: coarse) {
+  .chat-annotate-kinds > button {
+    height: var(--touch-target);
+  }
 }
 
 .chat-annotate-quote[data-kind="approve"] {

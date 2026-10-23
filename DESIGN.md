@@ -2215,8 +2215,12 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   keyboard `Y` or `+` agrees and `X` or `-` strikes (`+` is read by the key it types, so it works
   shifted on a US layout and unshifted on a German one). The editor, new or on a saved note, holds
   a `.segmented` switch (`.chat-annotate-kinds`: Comment, Agree, Strike) over the quote, whose rail
-  takes the kind's color (a strike's quote struck through); the comment stays optional for every
-  kind. A verdict's chip starts with its icon in its color; its words are the comment, else the
+  takes the kind's color (a strike's quote struck through), and the new editor's title follows it
+  ("Comment on selection", "Agree with selection", "Strike selection"); the comment stays optional
+  for every kind. On touch the switch's options are `--touch-target` high, and the docked pill
+  counts its border outside the target. A chip's and a sent card's quote button start with a
+  visually hidden "Agree:" or "Strike:", since their icon is hidden from a screen reader; a card's
+  quote reaches the touch target through an invisible expander, so a one-line quote adds no space. A verdict's chip starts with its icon in its color; its words are the comment, else the
   quote. A sent card's rail and the icon before where it came from take the verdict's color, and a
   strike's quote is struck through. The collection is counted as notes ("{n} notes", "Clear all
   notes?"), since not every one is a comment. In the feedback block a strike is a Plannotator

@@ -301,6 +301,10 @@ const BASE: Record<string, string> = {
   // t3code ports (a)
   "Comment": "댓글",
   "Comment on selection": "선택한 부분에 댓글",
+  "Agree with selection": "선택한 부분에 동의",
+  "Strike selection": "선택한 부분 삭제",
+  "Agree:": "동의:",
+  "Strike:": "삭제:",
   "Annotate selection": "선택한 부분에 주석",
   "Agree": "동의",
   "Strike": "삭제",

@@ -303,6 +303,10 @@ const BASE: Record<string, string> = {
   // t3code ports (a)
   "Comment": "コメント",
   "Comment on selection": "選択部分にコメント",
+  "Agree with selection": "選択部分に同意",
+  "Strike selection": "選択部分を削除",
+  "Agree:": "同意:",
+  "Strike:": "削除:",
   "Annotate selection": "選択部分に注釈",
   "Agree": "同意",
   "Strike": "削除",

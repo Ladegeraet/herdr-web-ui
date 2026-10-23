@@ -87,27 +87,33 @@
   height: 12px;
 }
 
-.chat-feedback-card[data-kind="reject"] .chat-feedback-quote {
+.chat-feedback-card[data-kind="reject"] .chat-feedback-quote-text {
   text-decoration: line-through;
 }
 
-/* the passage, muted on two lines at most; a tap goes to it */
+/* the passage, muted on two lines at most; a tap goes to it. The clamp is its words' own, so the
+   button can reach past them for a finger (below) */
 .chat-feedback-quote {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
+  position: relative;
+  display: block;
   padding: 0;
   border: 0;
   background: none;
   color: var(--text-dim);
   font: inherit;
   text-align: left;
+  cursor: pointer;
+}
+
+.chat-feedback-quote-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
   /* its line breaks are folded into spaces (ChatFeedbackCards.tsx); runs of spaces stay */
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  cursor: pointer;
 }
 
 .chat-feedback-quote:hover {
@@ -123,10 +129,17 @@
   overflow-wrap: anywhere;
 }
 
-/* a finger's reach: the fold's row and a quote are touch targets */
+/* a finger's reach: the fold's row and a quote are touch targets. The quote reaches the target's
+   height through an invisible expander, as a segmented option does (styles.css), so a one-line
+   quote keeps its card tight */
 @media (pointer: coarse) {
-  .chat-feedback-summary,
-  .chat-feedback-quote {
+  .chat-feedback-summary {
     min-height: var(--touch-target);
+  }
+
+  .chat-feedback-quote::before {
+    content: "";
+    position: absolute;
+    inset: min(0px, calc((100% - var(--touch-target)) / 2)) 0;
   }
 }
