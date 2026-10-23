@@ -223,7 +223,6 @@ export const COMPOSER_ZH: Record<string, string> = {
   "No (n)": "否 (n)",
   "Save the typed answer": "保存已输入的回答",
   "Discard it": "丢弃输入",
-  "Comment": "备注",
   "The conversation is over its {context} context: omp compacts it first": "对话已超出 {context} 上下文：omp 会先压缩它",
   "Question {n}": "问题 {n}",
   "Approve": "批准",
@@ -246,4 +245,8 @@ export const COMPOSER_ZH: Record<string, string> = {
   "Update this PC to send comments on a reply. Your message and comments stayed here.": "请更新这台电脑以发送对回复的评论。消息和评论仍保留在这里。",
   "Not sent: the message is in the terminal's input line. Clear it there, or press Enter there to send it.": "未发送：消息在终端的输入行中。请在那里清除它，或在那里按 Enter 发送。",
   "Not sent: no agent is running in this pane. Your message stayed here.": "未发送：此窗格中没有运行的代理。消息仍保留在这里。",
+  "Too long to send with your notes: a message holds {max} characters.": "加上批注后太长，无法发送：一条消息最多 {max} 个字符。",
+  "Your notes do not go with an answer to the agent's question. Answer it first, then send them.": "批注不会随对智能体问题的回答一起发送。请先回答，再发送批注。",
+  "Your notes wait until the agent is done: send them once it stops working.": "批注会等到智能体完成：请在它停止工作后再发送。",
+  "Sent without your notes: they stay for your next message.": "已发送，未附批注：批注保留到下一条消息。",
 };

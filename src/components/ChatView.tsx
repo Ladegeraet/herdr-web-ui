@@ -2226,6 +2226,8 @@ export const ChatView = memo(function ChatView({ paneId, presentationKey, finish
   // a sent card's quote: its passage when mounted, else the turn it is in, brought into the list's window first
   const timelineRowsRef = useRef(timelineRows);
   timelineRowsRef.current = timelineRows;
+  const shownTurnsRef = useRef(shownTurns);
+  shownTurnsRef.current = shownTurns;
   const jumpToPassage = useCallback((from: Element, annotation: SentAnnotation): void => {
     // the annotation the card was sent from, while this page still holds it: its anchor finds words that repeat
     const saved = sentAnnotationOf(paneStorageId(machineId, paneId), annotation);
