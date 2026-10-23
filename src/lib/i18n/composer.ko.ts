@@ -225,7 +225,6 @@ export const COMPOSER_KO: Record<string, string> = {
   "No (n)": "아니요 (n)",
   "Save the typed answer": "입력한 답 저장",
   "Discard it": "입력한 답 버리기",
-  "Comment": "코멘트",
   "The conversation is over its {context} context: omp compacts it first": "대화가 {context} 컨텍스트를 넘었습니다. omp가 먼저 압축합니다",
   "Question {n}": "질문 {n}",
   "Approve": "승인",
@@ -255,4 +254,8 @@ export const COMPOSER_KO: Record<string, string> = {
   "Not sent: no agent is running in this pane. Your message stayed here.": "보내지 않음: 이 패널에서 실행 중인 에이전트가 없습니다. 메시지는 그대로 남아 있습니다.",
   "1 comment": "코멘트 1개",
   "{count} comments": "코멘트 {count}개",
+  "Too long to send with your notes: a message holds {max} characters.": "메모를 붙이면 너무 길어 보낼 수 없습니다: 메시지는 {max}자까지입니다.",
+  "Your notes do not go with an answer to the agent's question. Answer it first, then send them.": "메모는 에이전트의 질문에 대한 답변에 붙지 않습니다. 먼저 답한 뒤 보내세요.",
+  "Your notes wait until the agent is done: send them once it stops working.": "메모는 에이전트가 작업을 마칠 때까지 기다립니다: 작업이 멈추면 보내세요.",
+  "Sent without your notes: they stay for your next message.": "메모 없이 보냈습니다: 메모는 다음 메시지를 위해 남아 있습니다.",
 };

@@ -225,7 +225,6 @@ export const COMPOSER_JA: Record<string, string> = {
   "No (n)": "いいえ (n)",
   "Save the typed answer": "入力した回答を保存",
   "Discard it": "入力を破棄",
-  "Comment": "コメント",
   "The conversation is over its {context} context: omp compacts it first": "会話が {context} のコンテキストを超えています。omp が先に圧縮します",
   "Question {n}": "質問 {n}",
   "Approve": "承認",
@@ -255,4 +254,8 @@ export const COMPOSER_JA: Record<string, string> = {
   "Not sent: no agent is running in this pane. Your message stayed here.": "未送信: このペインではエージェントが動いていません。メッセージはここに残っています。",
   "1 comment": "コメント1件",
   "{count} comments": "コメント{count}件",
+  "Too long to send with your notes: a message holds {max} characters.": "メモを付けると長すぎて送れません: 1 つのメッセージは {max} 文字までです。",
+  "Your notes do not go with an answer to the agent's question. Answer it first, then send them.": "メモはエージェントの質問への回答には付きません。先に回答してから送ってください。",
+  "Your notes wait until the agent is done: send them once it stops working.": "メモはエージェントの作業が終わるまで待ちます: 作業が止まってから送ってください。",
+  "Sent without your notes: they stay for your next message.": "メモなしで送信しました: メモは次のメッセージのために残っています。",
 };
