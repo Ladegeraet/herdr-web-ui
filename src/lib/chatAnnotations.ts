@@ -159,19 +159,28 @@ export function composeWithAnnotations(text: string, list: readonly ChatAnnotati
 }
 
 /**
- * What a Send from the composer carries. The annotations go only to an agent, with a message
+ * What a Send from the composer carries. The annotations go only to an agent, with a plain prompt
  * delivered at once and not as an answer to its open question: one held in the queue, taken as
- * the answer, or typed where no agent runs goes as typed, and they stay for the next. Never into a
- * shell, where the block's `>` lines would redirect and `$(…)` expand. `sentIds` are those to mark
- * sent once it went.
+ * the answer, typed where no agent runs, a command or shell escape (`plain` false), or sent over a
+ * screen still open goes as typed, and they stay for the next. Never into a shell, where the
+ * block's `>` lines would redirect, its fences and `$(…)` run, and an apostrophe open a string.
+ * `sentIds` are those to mark sent once it went.
  */
+/**
+ * Whether typed text reaches the agent as a prompt: not a slash command, not Claude Code's or
+ * Codex's `!` shell escape, not Claude Code's `#` memory line. Only these take the annotations.
+ */
+export function promptText(text: string): boolean {
+  return !/^\s*[!/#]/.test(text);
+}
+
 export type AnnotatedSend =
   | { kind: "send"; message: string; sentIds: readonly string[]; heldBack: boolean }
   | { kind: "refuse"; reason: "no-agent" | "question" | "queued" | "too-long" };
 
-export function planAnnotatedSend(text: string, list: readonly ChatAnnotation[], { agent, immediate, answering, max }: { agent: boolean; immediate: boolean; answering: boolean; max: number }): AnnotatedSend {
+export function planAnnotatedSend(text: string, list: readonly ChatAnnotation[], { agent, plain, immediate, answering, max }: { agent: boolean; plain: boolean; immediate: boolean; answering: boolean; max: number }): AnnotatedSend {
   if (list.length === 0) return { kind: "send", message: text, sentIds: [], heldBack: false };
-  if (!agent || answering || !immediate) {
+  if (!agent || !plain || !promptText(text) || answering || !immediate) {
     if (text.trim() === "") return { kind: "refuse", reason: !agent ? "no-agent" : answering ? "question" : "queued" };
     return { kind: "send", message: text, sentIds: [], heldBack: true };
   }
