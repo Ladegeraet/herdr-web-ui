@@ -18,7 +18,7 @@ import { passageMatch } from "../lib/chatPassage.ts";
 import { annotationContext } from "../lib/chatSelection.ts";
 import { useT } from "../lib/i18n.ts";
 import { flashPassage } from "./ChatAnnotationMarks.tsx";
-import { KindIcon } from "./ChatAnnotations.tsx";
+import { KindIcon, KindName } from "./ChatAnnotations.tsx";
 
 /** From this many annotations on, the cards fold into one row. */
 const FOLD_AT = 3;
@@ -58,7 +58,9 @@ function FeedbackCard({ annotation }: { annotation: SentAnnotation }) {
   const side = annotation.source === "agent" ? t("agent") : t("you");
   return <li className="chat-feedback-card" data-kind={annotation.kind}>
     <span className="chat-feedback-meta"><KindIcon kind={annotation.kind} />{annotation.context ? `${side} · ${annotation.context}` : side}</span>
-    <button type="button" className="chat-feedback-quote" title={t("Show the passage")} onClick={(event) => { jump(event.currentTarget, annotation); }}>{cardQuote(annotation.quote)}</button>
+    <button type="button" className="chat-feedback-quote" title={t("Show the passage")} onClick={(event) => { jump(event.currentTarget, annotation); }}>
+      <KindName kind={annotation.kind} /><span className="chat-feedback-quote-text">{cardQuote(annotation.quote)}</span>
+    </button>
     {annotation.comment !== "" && <p className="chat-feedback-comment">{annotation.comment}</p>}
   </li>;
 }

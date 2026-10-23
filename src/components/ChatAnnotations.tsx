@@ -203,7 +203,7 @@ export function ChatAnnotator({ root, storeKey }: { root: HTMLElement | null; st
       </div>,
       document.body,
     )}
-    {editing !== null && <AnnotationEditor title={t("Comment on selection")} quote={editing.quote} box={editing.box} onSave={saveEdited} onClose={close} focusAfter={focusComposer} />}
+    {editing !== null && <AnnotationEditor title={(kind) => t(kind === "approve" ? "Agree with selection" : kind === "reject" ? "Strike selection" : "Comment on selection")} quote={editing.quote} box={editing.box} onSave={saveEdited} onClose={close} focusAfter={focusComposer} />}
   </>;
 }
 
@@ -214,8 +214,16 @@ export function KindIcon({ kind }: { kind: ChatAnnotationKind }) {
   return null;
 }
 
+/** A verdict's name for a screen reader, before the words of its chip or card; its icon is hidden from one. */
+export function KindName({ kind }: { kind: ChatAnnotationKind }) {
+  const t = useT();
+  if (kind === "comment") return null;
+  return <span className="visually-hidden">{kind === "approve" ? t("Agree:") : t("Strike:")} </span>;
+}
+
 interface EditorProps {
-  title: string;
+  /** by the kind chosen in it, or one for every kind */
+  title: string | ((kind: ChatAnnotationKind) => string);
   quote: string;
   /** what the popover goes under; without one it opens as the modal */
   box: Box | null;
@@ -335,7 +343,7 @@ function AnnotationEditor({ title, quote, box, initialComment = "", initialKind 
   };
 
   const body = <>
-    <header className="modal-header"><h2 className="modal-title" id={`${id}-title`}>{title}</h2></header>
+    <header className="modal-header"><h2 className="modal-title" id={`${id}-title`}>{typeof title === "string" ? title : title(kind)}</h2></header>
     <div className="modal-body chat-annotate-body">
       <div className="segmented chat-annotate-kinds" role="group" aria-label={t("Kind")}>
         {KINDS.map((item) => <button key={item.kind} type="button" data-kind={item.kind} aria-pressed={kind === item.kind} onClick={() => { setKind(item.kind); }}>
@@ -469,7 +477,7 @@ export function ChatAnnotationChips({ storeKey, messageBox }: { storeKey: string
       {annotations.map((item, index) => <span key={item.id} className="chat-annotations-chip chat-annotation-chip" data-kind={item.kind}>
         <button type="button" className="chat-annotation-chip-open" data-annotation={item.id} aria-haspopup="dialog" title={item.comment || item.quote}
           onClick={(event) => { setEditing({ id: item.id, anchor: event.currentTarget.getBoundingClientRect() }); }}>
-          <KindIcon kind={item.kind} /><span className="chat-annotation-chip-text">{annotationChipLabel(item)}</span>
+          <KindIcon kind={item.kind} /><KindName kind={item.kind} /><span className="chat-annotation-chip-text">{annotationChipLabel(item)}</span>
         </button>
         <button type="button" className="chat-annotation-chip-remove" aria-label={t("Remove note {n}", { n: index + 1 })} title={t("Remove note {n}", { n: index + 1 })}
           onClick={() => { removeAnnotation(storeKey, item.id); setRemovedAt(index); }}><X aria-hidden="true" /></button>
