@@ -131,9 +131,18 @@
   overflow: hidden;
 }
 
-/* comment, agree or strike: a verdict's glyph keeps its own color, chosen or not */
+/* comment, agree or strike: a verdict's glyph keeps its own color, chosen or not (the chosen
+   option's glyph would take the accent, styles.css) */
 .chat-annotate-kinds {
   align-self: flex-start;
+}
+
+.chat-annotate-kinds > button[aria-pressed="true"] .chat-annotation-kind-icon[data-kind="approve"] {
+  color: var(--status-done);
+}
+
+.chat-annotate-kinds > button[aria-pressed="true"] .chat-annotation-kind-icon[data-kind="reject"] {
+  color: var(--status-blocked);
 }
 
 .chat-annotate-quote[data-kind="approve"] {
