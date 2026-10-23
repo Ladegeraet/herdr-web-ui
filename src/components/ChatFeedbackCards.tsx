@@ -1,7 +1,8 @@
 /**
  * The feedback block a message carried (lib/chatAnnotations.ts) drawn under its typed words as
  * small attachment cards, in the composer chips' register: an accent rail, the quote muted on two
- * lines at most, where it came from, and the comment. Three or more fold into one "{n} comments"
+ * lines at most, where it came from, and the comment; a verdict's rail and icon are green (agree) or
+ * red (strike, its quote struck through). Three or more fold into one "{n} notes"
  * row. A tap on a quote finds its passage in an earlier message and lights it for a moment; one
  * that is not found does nothing. The card's words are the block's: the message's copy keeps the
  * whole text as sent.
@@ -17,6 +18,7 @@ import { passageMatch } from "../lib/chatPassage.ts";
 import { annotationContext } from "../lib/chatSelection.ts";
 import { useT } from "../lib/i18n.ts";
 import { flashPassage } from "./ChatAnnotationMarks.tsx";
+import { KindIcon } from "./ChatAnnotations.tsx";
 
 /** From this many annotations on, the cards fold into one row. */
 const FOLD_AT = 3;
@@ -54,8 +56,8 @@ function FeedbackCard({ annotation }: { annotation: SentAnnotation }) {
   const t = useT();
   const jump = useContext(FeedbackJumpContext);
   const side = annotation.source === "agent" ? t("agent") : t("you");
-  return <li className="chat-feedback-card">
-    <span className="chat-feedback-meta">{annotation.context ? `${side} · ${annotation.context}` : side}</span>
+  return <li className="chat-feedback-card" data-kind={annotation.kind}>
+    <span className="chat-feedback-meta"><KindIcon kind={annotation.kind} />{annotation.context ? `${side} · ${annotation.context}` : side}</span>
     <button type="button" className="chat-feedback-quote" title={t("Show the passage")} onClick={(event) => { jump(event.currentTarget, annotation); }}>{cardQuote(annotation.quote)}</button>
     {annotation.comment !== "" && <p className="chat-feedback-comment">{annotation.comment}</p>}
   </li>;
@@ -69,9 +71,9 @@ export function ChatFeedbackCards({ annotations }: { annotations: readonly SentA
   const Chevron = open ? ChevronDown : ChevronRight;
   return <div className="chat-feedback">
     {folds && <button type="button" className="chat-feedback-summary" aria-expanded={open} onClick={() => { setOpen(!open); }}>
-      {t("{n} comments", { n: annotations.length })}<Chevron aria-hidden="true" />
+      {t("{n} notes", { n: annotations.length })}<Chevron aria-hidden="true" />
     </button>}
-    {open && <ul className="chat-feedback-list" aria-label={t("Comments sent with this message")}>
+    {open && <ul className="chat-feedback-list" aria-label={t("Notes sent with this message")}>
       {annotations.map((annotation, index) => <FeedbackCard key={index} annotation={annotation} />)}
     </ul>}
   </div>;

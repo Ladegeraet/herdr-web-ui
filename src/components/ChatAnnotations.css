@@ -2,32 +2,86 @@
    composer (ChatAnnotations.tsx). */
 
 /* beside the selection's end with a mouse; docked over the chat's foot on touch. Fixed, through a
-   portal: the chat scrolls and would cut it off at its edge */
+   portal: the chat scrolls and would cut it off at its edge. One pill: Comment, then the two
+   one-tap verdicts, Agree and Strike */
 .chat-annotate-trigger {
   position: fixed;
   z-index: var(--z-popover);
   display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
+  align-items: stretch;
   height: var(--control-h);
-  padding: 0 var(--space-3);
   background: var(--bg-panel);
-  border-color: var(--border-strong);
+  border: var(--hairline) solid var(--border-strong);
   border-radius: var(--radius-pill);
   box-shadow: var(--shadow-pop);
-  font-size: var(--fs-sm);
+  overflow: hidden;
 }
 
-.chat-annotate-trigger svg {
+.chat-annotate-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-3);
+  background: transparent;
+  border: 0;
+  color: var(--text-strong);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.chat-annotate-action:hover {
+  background: var(--bg-hover);
+}
+
+.chat-annotate-action:focus-visible {
+  outline-offset: -2px;
+}
+
+.chat-annotate-action svg {
   width: 16px;
   height: 16px;
   color: var(--accent);
 }
 
+/* the verdicts: an icon each, square, apart from Comment by a hairline */
+.chat-annotate-verdict {
+  width: var(--control-h);
+  padding: 0;
+  border-left: var(--hairline) solid var(--border);
+}
+
+.chat-annotate-verdict svg {
+  width: 18px;
+  height: 18px;
+}
+
+.chat-annotate-verdict[data-kind="approve"] svg,
+.chat-annotation-kind-icon[data-kind="approve"] {
+  color: var(--status-done);
+}
+
+.chat-annotate-verdict[data-kind="reject"] svg,
+.chat-annotation-kind-icon[data-kind="reject"] {
+  color: var(--status-blocked);
+}
+
 .chat-annotate-trigger.is-docked {
   height: var(--touch-target);
+}
+
+.chat-annotate-trigger.is-docked .chat-annotate-action {
   padding: 0 var(--space-4);
   font-size: var(--fs-md);
+}
+
+.chat-annotate-trigger.is-docked .chat-annotate-verdict {
+  width: var(--touch-target);
+  padding: 0;
 }
 
 /* the desktop popover: a menu surface holding the modal's header, body and footer */
@@ -75,6 +129,20 @@
   -webkit-line-clamp: 4;
   line-clamp: 4;
   overflow: hidden;
+}
+
+/* comment, agree or strike: a verdict's glyph keeps its own color, chosen or not */
+.chat-annotate-kinds {
+  align-self: flex-start;
+}
+
+.chat-annotate-quote[data-kind="approve"] {
+  border-left-color: var(--status-done);
+}
+
+.chat-annotate-quote[data-kind="reject"] {
+  border-left-color: var(--status-blocked);
+  text-decoration: line-through;
 }
 
 .chat-annotate-field {
@@ -203,6 +271,7 @@ button.chat-annotations-chip {
 }
 
 .chat-annotation-chip-open {
+  gap: var(--space-1);
   min-width: 0;
   overflow: hidden;
 }
@@ -250,6 +319,6 @@ button.chat-annotations-chip {
   margin-right: auto;
 }
 
-.chat-annotate-trigger .kbd {
+.chat-annotate-action .kbd {
   margin-left: var(--space-1);
 }
