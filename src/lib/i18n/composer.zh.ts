@@ -249,4 +249,5 @@ export const COMPOSER_ZH: Record<string, string> = {
   "Your notes do not go with an answer to the agent's question. Answer it first, then send them.": "批注不会随对智能体问题的回答一起发送。请先回答，再发送批注。",
   "Your notes wait until the agent is done: send them once it stops working.": "批注会等到智能体完成：请在它停止工作后再发送。",
   "Sent without your notes: they stay for your next message.": "已发送，未附批注：批注保留到下一条消息。",
+  "Your notes go only to an agent, and none runs in this pane now.": "批注只发送给代理，此窗格当前没有运行代理。",
 };

@@ -249,4 +249,5 @@ export const COMPOSER_KO: Record<string, string> = {
   "Your notes do not go with an answer to the agent's question. Answer it first, then send them.": "메모는 에이전트의 질문에 대한 답변에 붙지 않습니다. 먼저 답한 뒤 보내세요.",
   "Your notes wait until the agent is done: send them once it stops working.": "메모는 에이전트가 작업을 마칠 때까지 기다립니다: 작업이 멈추면 보내세요.",
   "Sent without your notes: they stay for your next message.": "메모 없이 보냈습니다: 메모는 다음 메시지를 위해 남아 있습니다.",
+  "Your notes go only to an agent, and none runs in this pane now.": "메모는 에이전트에게만 보내집니다. 지금 이 창에서 실행 중인 에이전트가 없습니다.",
 };

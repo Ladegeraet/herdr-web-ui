@@ -249,4 +249,5 @@ export const COMPOSER_JA: Record<string, string> = {
   "Your notes do not go with an answer to the agent's question. Answer it first, then send them.": "メモはエージェントの質問への回答には付きません。先に回答してから送ってください。",
   "Your notes wait until the agent is done: send them once it stops working.": "メモはエージェントの作業が終わるまで待ちます: 作業が止まってから送ってください。",
   "Sent without your notes: they stay for your next message.": "メモなしで送信しました: メモは次のメッセージのために残っています。",
+  "Your notes go only to an agent, and none runs in this pane now.": "メモはエージェントにだけ送られます。このペインでは今エージェントが動いていません。",
 };

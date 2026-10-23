@@ -159,18 +159,20 @@ export function composeWithAnnotations(text: string, list: readonly ChatAnnotati
 }
 
 /**
- * What a Send from the composer carries. The annotations go only with a message delivered at once
- * and not as an answer to the agent's open question: one held in the queue, or taken as the
- * answer, goes as typed and they stay for the next. `sentIds` are those to mark sent once it went.
+ * What a Send from the composer carries. The annotations go only to an agent, with a message
+ * delivered at once and not as an answer to its open question: one held in the queue, taken as
+ * the answer, or typed where no agent runs goes as typed, and they stay for the next. Never into a
+ * shell, where the block's `>` lines would redirect and `$(…)` expand. `sentIds` are those to mark
+ * sent once it went.
  */
 export type AnnotatedSend =
   | { kind: "send"; message: string; sentIds: readonly string[]; heldBack: boolean }
-  | { kind: "refuse"; reason: "question" | "queued" | "too-long" };
+  | { kind: "refuse"; reason: "no-agent" | "question" | "queued" | "too-long" };
 
-export function planAnnotatedSend(text: string, list: readonly ChatAnnotation[], { immediate, answering, max }: { immediate: boolean; answering: boolean; max: number }): AnnotatedSend {
+export function planAnnotatedSend(text: string, list: readonly ChatAnnotation[], { agent, immediate, answering, max }: { agent: boolean; immediate: boolean; answering: boolean; max: number }): AnnotatedSend {
   if (list.length === 0) return { kind: "send", message: text, sentIds: [], heldBack: false };
-  if (answering || !immediate) {
-    if (text.trim() === "") return { kind: "refuse", reason: answering ? "question" : "queued" };
+  if (!agent || answering || !immediate) {
+    if (text.trim() === "") return { kind: "refuse", reason: !agent ? "no-agent" : answering ? "question" : "queued" };
     return { kind: "send", message: text, sentIds: [], heldBack: true };
   }
   const message = composeWithAnnotations(text, list);

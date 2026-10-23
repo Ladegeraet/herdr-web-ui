@@ -222,7 +222,7 @@ describe("annotationChipLabel", () => {
 
 describe("planAnnotatedSend", () => {
   const list = [annotation({ id: "a", createdAt: 1 }), annotation({ id: "b", createdAt: 2 })];
-  const now = { immediate: true, answering: false, max: 10_000 };
+  const now = { agent: true, immediate: true, answering: false, max: 10_000 };
 
   it("sends the text as typed without annotations", () => {
     expect(planAnnotatedSend(" hi ", [], { ...now, answering: true })).toEqual({ kind: "send", message: " hi ", sentIds: [], heldBack: false });
@@ -238,6 +238,14 @@ describe("planAnnotatedSend", () => {
     expect(planAnnotatedSend("2", list, { ...now, answering: true })).toEqual({ kind: "send", message: "2", sentIds: [], heldBack: true });
     expect(planAnnotatedSend("", list, { ...now, immediate: false })).toEqual({ kind: "refuse", reason: "queued" });
     expect(planAnnotatedSend(" ", list, { ...now, immediate: false, answering: true })).toEqual({ kind: "refuse", reason: "question" });
+  });
+
+  it("never sends them where no agent runs: a shell would take `>` as a redirect", () => {
+    expect(planAnnotatedSend("ls", list, { ...now, agent: false })).toEqual({ kind: "send", message: "ls", sentIds: [], heldBack: true });
+    expect(planAnnotatedSend(" ", list, { ...now, agent: false })).toEqual({ kind: "refuse", reason: "no-agent" });
+    // no agent outranks the other reasons, so the hint names what would let them go
+    expect(planAnnotatedSend("", list, { ...now, agent: false, immediate: false, answering: true })).toEqual({ kind: "refuse", reason: "no-agent" });
+    expect(planAnnotatedSend("ls", [], { ...now, agent: false })).toEqual({ kind: "send", message: "ls", sentIds: [], heldBack: false });
   });
 
   it("refuses a message the annotations make too long", () => {
