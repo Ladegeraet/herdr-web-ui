@@ -222,7 +222,7 @@ describe("annotationChipLabel", () => {
 
 describe("planAnnotatedSend", () => {
   const list = [annotation({ id: "a", createdAt: 1 }), annotation({ id: "b", createdAt: 2 })];
-  const now = { agent: true, immediate: true, answering: false, max: 10_000 };
+  const now = { agent: true, plain: true, immediate: true, answering: false, max: 10_000 };
 
   it("sends the text as typed without annotations", () => {
     expect(planAnnotatedSend(" hi ", [], { ...now, answering: true })).toEqual({ kind: "send", message: " hi ", sentIds: [], heldBack: false });
@@ -246,6 +246,15 @@ describe("planAnnotatedSend", () => {
     // no agent outranks the other reasons, so the hint names what would let them go
     expect(planAnnotatedSend("", list, { ...now, agent: false, immediate: false, answering: true })).toEqual({ kind: "refuse", reason: "no-agent" });
     expect(planAnnotatedSend("ls", [], { ...now, agent: false })).toEqual({ kind: "send", message: "ls", sentIds: [], heldBack: false });
+  });
+
+  it("keeps them off a command, a shell escape or a memory line, and off a send over an open screen", () => {
+    for (const typed of ["!echo hi", "  !ls", "/status", "/resume", "# remember this"]) {
+      expect(planAnnotatedSend(typed, list, now)).toEqual({ kind: "send", message: typed, sentIds: [], heldBack: true });
+    }
+    expect(planAnnotatedSend("go on", list, { ...now, plain: false })).toEqual({ kind: "send", message: "go on", sentIds: [], heldBack: true });
+    // a word that only holds the characters is a prompt
+    expect(planAnnotatedSend("a/b and !c", list, now)).toMatchObject({ sentIds: ["a", "b"], heldBack: false });
   });
 
   it("refuses a message the annotations make too long", () => {

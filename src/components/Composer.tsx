@@ -840,7 +840,8 @@ export function Composer({
     if (message.length > MAX_COMPOSER_CHARS) { setNote(t("Too long with the comments: remove a comment or shorten the message.")); return false; }
     const sentComments = carried;
     // the box's text is what the draft settles; the message sent can carry the annotations after it
-    const plan = planAnnotatedSend(message, annotations, { agent: agent !== null, immediate: composerDelivery(agent, agentStatus) === "immediate", answering: answerHint !== null, max: MAX_COMPOSER_CHARS });
+    // a send over a screen the user saw still open may land in that screen, not with the agent
+    const plan = planAnnotatedSend(message, annotations, { agent: agent !== null, plain: !sendAnyway, immediate: composerDelivery(agent, agentStatus) === "immediate", answering: answerHint !== null, max: MAX_COMPOSER_CHARS });
     if (plan.kind === "refuse") {
       if (plan.reason === "too-long") setNote(t("Too long to send with your notes: a message holds {max} characters.", { max: formatChars(MAX_COMPOSER_CHARS) }));
       else if (plan.reason === "no-agent") tell(t("Your notes go only to an agent, and none runs in this pane now."));
