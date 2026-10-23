@@ -8,9 +8,13 @@ import type { TextAnchor } from "./chatHighlights.ts";
  */
 export type ChatAnnotationSource = "agent" | "user";
 
+/** What the annotation says: a comment, or a one-tap verdict (agree, strike) that may carry one. Open for more quick labels. */
+export type ChatAnnotationKind = "comment" | "approve" | "reject";
+
 export interface ChatAnnotation {
   id: string;
   source: ChatAnnotationSource;
+  kind: ChatAnnotationKind;
   /** The selected text. */
   quote: string;
   /** "" flags the passage without a comment */
@@ -26,7 +30,8 @@ export interface ChatAnnotation {
   createdAt: number;
 }
 
-export type ChatAnnotationInput = Omit<ChatAnnotation, "id" | "createdAt">;
+/** A new annotation; without `kind` it is a comment. */
+export type ChatAnnotationInput = Omit<ChatAnnotation, "id" | "createdAt" | "kind"> & { kind?: ChatAnnotationKind };
 
 /** The lines of `text` without CRs, trailing spaces or blank edges. */
 function cleanLines(text: string): string[] {
@@ -39,15 +44,24 @@ function cleanLines(text: string): string[] {
 /** A quote longer than this goes in a fenced block, not inline in the heading. */
 const INLINE_QUOTE_MAX = 200;
 
-/** One entry: the heading with the quote inline, or a fenced block for a long or multi-line one, then the comment quoted. */
+/** A strike's comment when the user wrote none, as Plannotator words a deletion. */
+const STRIKE_DEFAULT = "I don't want this.";
+const APPROVE_LABEL = "[👍 Looks good]";
+
+/**
+ * One entry, in Plannotator's shapes: a comment or an agreement has its quote inline in the
+ * heading, or fenced when long or multi-line, then its comment quoted; a strike always fences
+ * the quote and says why, or "I don't want this." without a comment.
+ */
 function feedbackEntry(annotation: ChatAnnotation, number: number): string {
   const context = annotation.context?.trim();
   const label = `${annotation.source === "agent" ? "agent message" : "your message"}${context ? `, ${context}` : ""}`;
-  const heading = `## ${number}. (${label}) Feedback on:`;
   const quote = cleanLines(annotation.quote);
-  const comment = cleanLines(annotation.comment).map((line) => (line === "" ? ">" : `> ${line}`));
+  const written = cleanLines(annotation.comment);
+  const comment = (annotation.kind === "reject" && written.length === 0 ? [STRIKE_DEFAULT] : written).map((line) => (line === "" ? ">" : `> ${line}`));
+  const heading = annotation.kind === "reject" ? `## ${number}. (${label}) Remove this` : `## ${number}. (${label})${annotation.kind === "approve" ? ` ${APPROVE_LABEL}` : ""} Feedback on:`;
   const single = quote.length <= 1 ? (quote[0] ?? "").trim() : null;
-  if (single !== null && single.length <= INLINE_QUOTE_MAX) return [`${heading} "${single}"`, ...comment].join("\n");
+  if (annotation.kind !== "reject" && single !== null && single.length <= INLINE_QUOTE_MAX) return [`${heading} "${single}"`, ...comment].join("\n");
   // a fence longer than any backtick run in the quote, so the quote cannot close it
   const longest = Math.max(0, ...(annotation.quote.match(/`+/g) ?? []).map((run) => run.length));
   const fence = "`".repeat(Math.max(3, longest + 1));
@@ -65,6 +79,7 @@ export function formatAnnotationsMarkdown(list: readonly ChatAnnotation[]): stri
 /** One entry read back from a sent feedback block. */
 export interface SentAnnotation {
   source: ChatAnnotationSource;
+  kind: ChatAnnotationKind;
   quote: string;
   /** "" for a passage only flagged */
   comment: string;
@@ -73,7 +88,7 @@ export interface SentAnnotation {
 
 const BLOCK_TITLE = "# Message Feedback";
 const BLOCK_INTRO = /^I've reviewed this conversation and have (\d+) pieces? of feedback:$/;
-const ENTRY_HEADING = /^## (\d+)\. \((agent message|your message)(?:, (.+?))?\) Feedback on:(?: "(.*)")?$/;
+const ENTRY_HEADING = /^## (\d+)\. \((agent message|your message)(?:, (.+?))?\) (?:(Remove this)|(\[👍 Looks good\] )?Feedback on:(?: "(.*)")?)$/;
 const FENCE = /^`{3,}$/;
 
 /** The entries of a block from its title line on, which must run to the end of `lines`; null when it is not one formatAnnotationsMarkdown wrote. */
@@ -93,8 +108,9 @@ function parseBlockLines(lines: readonly string[]): SentAnnotation[] | null {
     const heading = ENTRY_HEADING.exec(line);
     if (heading === null || Number(heading[1]) !== entries.length + 1) return null;
     at += 1;
+    const kind: ChatAnnotationKind = heading[4] !== undefined ? "reject" : heading[5] !== undefined ? "approve" : "comment";
     let quote: string;
-    if (heading[4] !== undefined) quote = heading[4];
+    if (heading[6] !== undefined) quote = heading[6];
     else {
       const fence = lines[at];
       if (fence === undefined || !FENCE.test(fence)) return null;
@@ -109,7 +125,8 @@ function parseBlockLines(lines: readonly string[]): SentAnnotation[] | null {
       at += 1;
     }
     const context = heading[3];
-    entries.push({ source: heading[2] === "agent message" ? "agent" : "user", quote, comment: comment.join("\n"), ...(context === undefined ? {} : { context }) });
+    const said = comment.join("\n");
+    entries.push({ source: heading[2] === "agent message" ? "agent" : "user", kind, quote, comment: kind === "reject" && said === STRIKE_DEFAULT ? "" : said, ...(context === undefined ? {} : { context }) });
   }
   at += 1;
   skipBlank();
@@ -189,12 +206,12 @@ export function addAnnotation(key: string, input: ChatAnnotationInput): ChatAnno
   lastId += 1;
   // createdAt never repeats within a conversation, so the oldest-first order stays the order added
   const latest = getAnnotations(key).reduce((max, annotation) => Math.max(max, annotation.createdAt), 0);
-  const annotation: ChatAnnotation = { ...input, id: `annotation-${Date.now().toString(36)}-${lastId}`, createdAt: Math.max(Date.now(), latest + 1) };
+  const annotation: ChatAnnotation = { ...input, kind: input.kind ?? "comment", id: `annotation-${Date.now().toString(36)}-${lastId}`, createdAt: Math.max(Date.now(), latest + 1) };
   publish(key, [...getAnnotations(key), annotation]);
   return annotation;
 }
 
-export function updateAnnotation(key: string, id: string, patch: Partial<Pick<ChatAnnotation, "comment" | "tag">>): void {
+export function updateAnnotation(key: string, id: string, patch: Partial<Pick<ChatAnnotation, "comment" | "kind" | "tag">>): void {
   const current = getAnnotations(key);
   if (!current.some((annotation) => annotation.id === id)) return;
   publish(key, current.map((annotation) => (annotation.id === id ? { ...annotation, ...patch } : annotation)));
@@ -230,7 +247,7 @@ const looseQuote = (quote: string): string => quote.replace(/\s+/g, " ").trim();
 /** The latest annotation sent from this page that a feedback card read back from a message stands for; undefined after a reload. */
 export function sentAnnotationOf(key: string, card: SentAnnotation): ChatAnnotation | undefined {
   const quote = looseQuote(card.quote);
-  return [...getSentAnnotations(key)].reverse().find((annotation) => annotation.source === card.source && looseQuote(annotation.quote) === quote);
+  return [...getSentAnnotations(key)].reverse().find((annotation) => annotation.source === card.source && annotation.kind === card.kind && looseQuote(annotation.quote) === quote);
 }
 
 export function subscribeAnnotations(key: string, listener: () => void): () => void {

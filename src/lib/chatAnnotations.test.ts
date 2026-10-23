@@ -10,7 +10,7 @@ function freshKey(): string {
 }
 
 function annotation(fields: Partial<ChatAnnotation>): ChatAnnotation {
-  return { id: "a", source: "agent", quote: "quoted", comment: "noted", createdAt: 1, ...fields };
+  return { id: "a", source: "agent", kind: "comment", quote: "quoted", comment: "noted", createdAt: 1, ...fields };
 }
 
 describe("formatAnnotationsMarkdown", () => {
@@ -68,6 +68,41 @@ describe("formatAnnotationsMarkdown", () => {
   it("fences a quote holding backticks with a longer fence", () => {
     expect(formatAnnotationsMarkdown([annotation({ quote: "a\n```ts\nb" })])).toContain("Feedback on:\n````\na\n```ts\nb\n````\n> noted");
   });
+
+  it("writes a strike as Plannotator's deletion: the quote fenced, then why", () => {
+    expect(formatAnnotationsMarkdown([annotation({ kind: "reject", quote: "Drop the cache", comment: "", context: "14:35" })])).toBe(
+      "# Message Feedback\n\nI've reviewed this conversation and have 1 piece of feedback:\n\n"
+      + "## 1. (agent message, 14:35) Remove this\n```\nDrop the cache\n```\n> I don't want this.\n\n---",
+    );
+    expect(formatAnnotationsMarkdown([annotation({ kind: "reject", quote: "a ``b``", comment: "Too risky.\nLater." })])).toContain(
+      "## 1. (agent message) Remove this\n```\na ``b``\n```\n> Too risky.\n> Later.\n\n---",
+    );
+  });
+
+  it("writes an agreement with Plannotator's label, its comment only when there is one", () => {
+    expect(formatAnnotationsMarkdown([annotation({ kind: "approve", quote: "Ship it", comment: "", context: "14:36" })])).toContain(
+      '## 1. (agent message, 14:36) [👍 Looks good] Feedback on: "Ship it"\n\n---',
+    );
+    expect(formatAnnotationsMarkdown([annotation({ kind: "approve", source: "user", quote: "Ship it", comment: "Yes, today." })])).toContain(
+      '## 1. (your message) [👍 Looks good] Feedback on: "Ship it"\n> Yes, today.\n\n---',
+    );
+    expect(formatAnnotationsMarkdown([annotation({ kind: "approve", quote: "one\ntwo", comment: "" })])).toContain(
+      "## 1. (agent message) [👍 Looks good] Feedback on:\n```\none\ntwo\n```\n\n---",
+    );
+  });
+
+  it("numbers comments and verdicts in one list, oldest first", () => {
+    expect(formatAnnotationsMarkdown([
+      annotation({ id: "c", kind: "approve", quote: "Keep the retry", comment: "", createdAt: 3, context: "14:36" }),
+      annotation({ id: "a", quote: "Use a map here", comment: "Why not a set?", createdAt: 1, context: "14:32" }),
+      annotation({ id: "b", kind: "reject", quote: "Drop the cache", comment: "", createdAt: 2, context: "14:35" }),
+    ])).toBe(
+      "# Message Feedback\n\nI've reviewed this conversation and have 3 pieces of feedback:\n\n"
+      + '## 1. (agent message, 14:32) Feedback on: "Use a map here"\n> Why not a set?\n\n'
+      + "## 2. (agent message, 14:35) Remove this\n```\nDrop the cache\n```\n> I don't want this.\n\n"
+      + '## 3. (agent message, 14:36) [👍 Looks good] Feedback on: "Keep the retry"\n\n---',
+    );
+  });
 });
 
 describe("composeWithAnnotations", () => {
@@ -90,8 +125,8 @@ describe("composeWithAnnotations", () => {
 
 describe("parseAnnotationsBlock", () => {
   const sent = (fields: Partial<ChatAnnotation>) => {
-    const { source, quote, comment, context } = annotation(fields);
-    return { source, quote, comment, ...(context === undefined ? {} : { context }) };
+    const { source, kind, quote, comment, context } = annotation(fields);
+    return { source, kind, quote, comment, ...(context === undefined ? {} : { context }) };
   };
 
   it("reads back what was typed and every annotation, in order", () => {
@@ -106,6 +141,36 @@ describe("parseAnnotationsBlock", () => {
       text: "das ist ganz coolio",
       annotations: list.map((item) => sent(item)),
     });
+  });
+
+  it("reads back every kind, with and without a comment, inline and fenced", () => {
+    const list = [
+      annotation({ id: "a", kind: "reject", quote: "Drop the cache", comment: "", context: "14:35", createdAt: 1 }),
+      annotation({ id: "b", kind: "reject", source: "user", quote: "line one\n```\nline two", comment: "Too risky.\n\nLater.", createdAt: 2 }),
+      annotation({ id: "c", kind: "approve", quote: "Keep the retry", comment: "", context: "14:36", createdAt: 3 }),
+      annotation({ id: "d", kind: "approve", quote: "word ".repeat(60).trim(), comment: "Yes.", createdAt: 4 }),
+      annotation({ id: "e", kind: "approve", quote: "one\ntwo", comment: "", createdAt: 5 }),
+      annotation({ id: "f", quote: "Use a map here", comment: "Why not a set?", createdAt: 6 }),
+      annotation({ id: "g", quote: "flagged only", comment: "", createdAt: 7 }),
+    ];
+    expect(parseAnnotationsBlock(composeWithAnnotations("mixed", list))).toEqual({ text: "mixed", annotations: list.map((item) => sent(item)) });
+  });
+
+  it("still reads a block sent before verdicts existed", () => {
+    const v4 = "ok\n\n# Message Feedback\n\nI've reviewed this conversation and have 2 pieces of feedback:\n\n"
+      + '## 1. (agent message, 14:32) Feedback on: "Use a map here"\n> Why not a set?\n\n'
+      + "## 2. (your message) Feedback on:\n```\na\nb\n```\n\n---";
+    expect(parseAnnotationsBlock(v4)).toEqual({
+      text: "ok",
+      annotations: [
+        { source: "agent", kind: "comment", quote: "Use a map here", comment: "Why not a set?", context: "14:32" },
+        { source: "user", kind: "comment", quote: "a\nb", comment: "" },
+      ],
+    });
+  });
+
+  it("reads nothing from a strike whose quote is not fenced", () => {
+    expect(parseAnnotationsBlock("# Message Feedback\n\nI've reviewed this conversation and have 1 piece of feedback:\n\n## 1. (agent message) Remove this \"x\"\n> no\n\n---")).toBeNull();
   });
 
   it("reads a message that is only the block", () => {
@@ -309,10 +374,21 @@ describe("annotation store", () => {
     const anchor = { start: 4, end: 14, exact: "Fix it now", prefix: "Ok: ", suffix: "" };
     const first = addAnnotation(key, { source: "agent", quote: "Fix it\nnow", comment: "", turnTs: "2026-10-22T10:00:00Z", anchor });
     addAnnotation(key, { source: "user", quote: "Fix it now", comment: "" });
-    expect(sentAnnotationOf(key, { source: "agent", quote: "Fix it now", comment: "" })).toBeUndefined();
+    expect(sentAnnotationOf(key, { source: "agent", kind: "comment", quote: "Fix it now", comment: "" })).toBeUndefined();
     markAnnotationsSent(key, getAnnotations(key).map((annotation) => annotation.id));
     // the card reads the quote back on one line; the side must match too
-    expect(sentAnnotationOf(key, { source: "agent", quote: "Fix it now", comment: "" })).toEqual(first);
-    expect(sentAnnotationOf(key, { source: "agent", quote: "Fix it later", comment: "" })).toBeUndefined();
+    expect(sentAnnotationOf(key, { source: "agent", kind: "comment", quote: "Fix it now", comment: "" })).toEqual(first);
+    expect(sentAnnotationOf(key, { source: "agent", kind: "comment", quote: "Fix it later", comment: "" })).toBeUndefined();
+    // a verdict on the same words is another annotation
+    expect(sentAnnotationOf(key, { source: "agent", kind: "reject", quote: "Fix it now", comment: "" })).toBeUndefined();
+  });
+
+  it("adds a comment unless told the kind, and switches the kind on edit", () => {
+    const key = freshKey();
+    expect(addAnnotation(key, { source: "agent", quote: "q", comment: "" }).kind).toBe("comment");
+    const verdict = addAnnotation(key, { source: "agent", kind: "reject", quote: "q", comment: "" });
+    expect(verdict.kind).toBe("reject");
+    updateAnnotation(key, verdict.id, { kind: "approve", comment: "fine" });
+    expect(getAnnotations(key)[1]).toMatchObject({ kind: "approve", comment: "fine" });
   });
 });
