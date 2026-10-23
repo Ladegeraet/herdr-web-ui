@@ -16,11 +16,11 @@
  */
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { MessageSquarePlus, MessageSquareText, Trash2, X } from "lucide-react";
+import { Check, MessageSquarePlus, MessageSquareText, Trash2, X } from "lucide-react";
 
 import "./ChatAnnotations.css";
 
-import { addAnnotation, annotationChipLabel, clearAnnotations, removeAnnotation, updateAnnotation, useChatAnnotations, type ChatAnnotation, type ChatAnnotationSource } from "../lib/chatAnnotations.ts";
+import { addAnnotation, annotationChipLabel, clearAnnotations, removeAnnotation, updateAnnotation, useChatAnnotations, type ChatAnnotation, type ChatAnnotationKind, type ChatAnnotationSource } from "../lib/chatAnnotations.ts";
 import { selectionAnchor } from "../lib/chatPassage.ts";
 import { annotationContext, annotationSource, boxesMeet, popoverPlace, triggerPlace, type Box } from "../lib/chatSelection.ts";
 import { enterSubmits, enterSubmitShortcut } from "../lib/enterSubmits.ts";
@@ -84,7 +84,7 @@ export function ChatAnnotator({ root, storeKey }: { root: HTMLElement | null; st
   const [selected, setSelected] = useState<Selected | null>(null);
   const [editing, setEditing] = useState<Selected | null>(null);
   const [place, setPlace] = useState<{ top: number; left: number } | null>(null);
-  const trigger = useRef<HTMLButtonElement>(null);
+  const trigger = useRef<HTMLDivElement>(null);
   // a press on Comment can collapse the selection (iOS does, before the click): the press keeps it
   const pressing = useRef(false);
   // a mouse still dragging out the selection: Comment waits for the button to come up
@@ -144,49 +144,72 @@ export function ChatAnnotator({ root, storeKey }: { root: HTMLElement | null; st
     } else setPlace(triggerPlace(selected.end, viewport(), size));
   }, [coarse, root, selected]);
 
-  // with a keyboard, C opens the comment on what is selected, as Comment does
+  // saved from the editor or by a verdict's one tap: the selection is done with
+  const save = useCallback((from: Selected, comment: string, kind: ChatAnnotationKind) => {
+    // the range's nodes are the message's while it stays mounted; one remounted since keeps no anchor
+    const { message, range } = from;
+    const anchor = message.isConnected && !range.collapsed && message.contains(range.commonAncestorContainer) ? selectionAnchor(message, range) : undefined;
+    addAnnotation(storeKey, { source: from.source, kind, quote: from.quote, comment, context: from.context, turnTs: from.turnTs, anchor });
+    setEditing(null);
+    setSelected(null);
+    document.getSelection()?.removeAllRanges();
+  }, [storeKey]);
+
+  // with a keyboard, C opens the comment on what is selected, as Comment does; Y or + agrees, X or - strikes
   useEffect(() => {
     if (selected === null || editing !== null) return;
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key.toLowerCase() !== "c" || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || event.isComposing || event.repeat) return;
+      if (event.metaKey || event.ctrlKey || event.altKey || event.isComposing || event.repeat) return;
+      // + is shifted on a US layout, not on a German one: it is read by the key it types
+      const key = event.key === "+" || event.key === "-" ? event.key : event.shiftKey ? "" : event.key.toLowerCase();
+      const action = key === "c" ? "comment" : key === "y" || key === "+" ? "approve" : key === "x" || key === "-" ? "reject" : null;
+      if (action === null) return;
       const target = event.target instanceof Element ? event.target : null;
       if (target?.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return;
       event.preventDefault();
-      setEditing(selected);
+      if (action === "comment") setEditing(selected);
+      else save(selected, "", action);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [editing, selected]);
+  }, [editing, save, selected]);
 
   const close = useCallback(() => { setEditing(null); }, []);
   // saved or not, the focus goes on to the message box once the editor is gone
   const focusComposer = useCallback(() => focusMessageBox(storeKey), [storeKey]);
-  const save = useCallback((comment: string) => {
-    if (editing === null) return;
-    // the range's nodes are the message's while it stays mounted; one remounted since keeps no anchor
-    const { message, range } = editing;
-    const anchor = message.isConnected && !range.collapsed && message.contains(range.commonAncestorContainer) ? selectionAnchor(message, range) : undefined;
-    addAnnotation(storeKey, { source: editing.source, quote: editing.quote, comment, context: editing.context, turnTs: editing.turnTs, anchor });
-    setEditing(null);
-    setSelected(null);
-    document.getSelection()?.removeAllRanges();
-  }, [editing, storeKey]);
+  const saveEdited = useCallback((comment: string, kind: ChatAnnotationKind) => { if (editing !== null) save(editing, comment, kind); }, [editing, save]);
+  // a press on any of them: Comment opens the editor, a verdict is saved at once
+  const press = (run: () => void) => ({
+    // the press must not take the focus or the selection from the message
+    onMouseDown: (event: { preventDefault: () => void }) => { event.preventDefault(); },
+    onClick: () => { pressing.current = false; run(); },
+  });
 
   return <>
     {selected !== null && editing === null && createPortal(
-      <button ref={trigger} type="button" aria-keyshortcuts={coarse ? undefined : "C"} className={`btn chat-annotate-trigger${coarse ? " is-docked" : ""}`} style={place ?? { visibility: "hidden" }}
+      <div ref={trigger} className={`chat-annotate-trigger${coarse ? " is-docked" : ""}`} role="group" aria-label={t("Annotate selection")} style={place ?? { visibility: "hidden" }}
         onPointerDown={() => { pressing.current = true; }}
-        onPointerCancel={() => { pressing.current = false; }}
-        // the press must not take the focus or the selection from the message
-        onMouseDown={(event) => { event.preventDefault(); }}
-        onClick={() => { pressing.current = false; setEditing(selected); }}>
-        <MessageSquarePlus aria-hidden="true" />{t("Comment")}
-        {!coarse && <kbd className="kbd" aria-hidden="true">C</kbd>}
-      </button>,
+        onPointerCancel={() => { pressing.current = false; }}>
+        <button type="button" className="chat-annotate-action chat-annotate-comment" aria-keyshortcuts={coarse ? undefined : "C"} {...press(() => { setEditing(selected); })}>
+          <MessageSquarePlus aria-hidden="true" />{t("Comment")}
+          {!coarse && <kbd className="kbd" aria-hidden="true">C</kbd>}
+        </button>
+        <button type="button" className="chat-annotate-action chat-annotate-verdict" data-kind="approve" aria-label={t("Agree")} title={coarse ? t("Agree") : `${t("Agree")} (Y)`}
+          aria-keyshortcuts={coarse ? undefined : "Y +"} {...press(() => { save(selected, "", "approve"); })}><Check aria-hidden="true" /></button>
+        <button type="button" className="chat-annotate-action chat-annotate-verdict" data-kind="reject" aria-label={t("Strike")} title={coarse ? t("Strike") : `${t("Strike")} (X)`}
+          aria-keyshortcuts={coarse ? undefined : "X -"} {...press(() => { save(selected, "", "reject"); })}><X aria-hidden="true" /></button>
+      </div>,
       document.body,
     )}
-    {editing !== null && <AnnotationEditor title={t("Comment on selection")} quote={editing.quote} box={editing.box} onSave={save} onClose={close} focusAfter={focusComposer} />}
+    {editing !== null && <AnnotationEditor title={t("Comment on selection")} quote={editing.quote} box={editing.box} onSave={saveEdited} onClose={close} focusAfter={focusComposer} />}
   </>;
+}
+
+/** The icon a verdict carries on its chip, card and in the editor's switch; a comment has none of its own there. */
+export function KindIcon({ kind }: { kind: ChatAnnotationKind }) {
+  if (kind === "approve") return <Check aria-hidden="true" className="chat-annotation-kind-icon" data-kind="approve" />;
+  if (kind === "reject") return <X aria-hidden="true" className="chat-annotation-kind-icon" data-kind="reject" />;
+  return null;
 }
 
 interface EditorProps {
@@ -195,7 +218,8 @@ interface EditorProps {
   /** what the popover goes under; without one it opens as the modal */
   box: Box | null;
   initialComment?: string;
-  onSave: (comment: string) => void;
+  initialKind?: ChatAnnotationKind;
+  onSave: (comment: string, kind: ChatAnnotationKind) => void;
   onClose: () => void;
   /** offered only for an annotation already saved */
   onDelete?: () => void;
@@ -215,7 +239,10 @@ function focusMessageBox(storeKey: string): boolean {
   return true;
 }
 
-function AnnotationEditor({ title, quote, box, initialComment = "", onSave, onClose, onDelete, focusAfter }: EditorProps) {
+/** The editor's kind switch, in the order the selection's buttons stand. */
+const KINDS: readonly { kind: ChatAnnotationKind; label: string }[] = [{ kind: "comment", label: "Comment" }, { kind: "approve", label: "Agree" }, { kind: "reject", label: "Strike" }];
+
+function AnnotationEditor({ title, quote, box, initialComment = "", initialKind = "comment", onSave, onClose, onDelete, focusAfter }: EditorProps) {
   const t = useT();
   const id = useId();
   const { settings } = useSettings();
@@ -229,9 +256,10 @@ function AnnotationEditor({ title, quote, box, initialComment = "", onSave, onCl
   // back to the composer on touch, which would raise the keyboard
   const surface = useFocusTrap<HTMLDivElement>(modal, { initialFocus: field, shouldRestore: () => !coarse && focusAfter === undefined });
   const [comment, setComment] = useState(initialComment);
+  const [kind, setKind] = useState(initialKind);
   // a comment being written or changed is never thrown away by a stray press or swipe; Escape,
   // Cancel and Back still discard it
-  const written = comment.trim() !== initialComment.trim();
+  const written = comment.trim() !== initialComment.trim() || kind !== initialKind;
   const writtenRef = useRef(written);
   writtenRef.current = written;
   useSheetSwipe(surface, sheet && !written ? onClose : null);
@@ -301,24 +329,29 @@ function AnnotationEditor({ title, quote, box, initialComment = "", onSave, onCl
   const onFieldKey = (event: ReactKeyboardEvent<HTMLTextAreaElement>): void => {
     if (!enterSubmits(event.nativeEvent, settings.enterSends)) return;
     event.preventDefault();
-    onSave(comment.trim());
+    onSave(comment.trim(), kind);
   };
 
   const body = <>
     <header className="modal-header"><h2 className="modal-title" id={`${id}-title`}>{title}</h2></header>
     <div className="modal-body chat-annotate-body">
-      <blockquote className="chat-annotate-quote">{quote}</blockquote>
+      <div className="segmented chat-annotate-kinds" role="group" aria-label={t("Kind")}>
+        {KINDS.map((item) => <button key={item.kind} type="button" data-kind={item.kind} aria-pressed={kind === item.kind} onClick={() => { setKind(item.kind); }}>
+          {item.kind === "comment" ? <MessageSquareText aria-hidden="true" /> : <KindIcon kind={item.kind} />}{t(item.label)}
+        </button>)}
+      </div>
+      <blockquote className="chat-annotate-quote" data-kind={kind}>{quote}</blockquote>
       <label className="visually-hidden" htmlFor={`${id}-comment`}>{t("Your comment")}</label>
       <textarea ref={field} id={`${id}-comment`} className="input chat-annotate-field" rows={3} value={comment}
         aria-keyshortcuts={enterSubmitShortcut(settings.enterSends)}
-        placeholder={t("What should the agent know about this?")}
+        placeholder={kind === "comment" ? t("What should the agent know about this?") : t("Add a comment (optional)")}
         spellCheck autoCapitalize="sentences" autoCorrect="on"
         onChange={(event) => { setComment(event.target.value); }} onKeyDown={onFieldKey} />
     </div>
     <footer className="modal-footer">
       {onDelete && <button type="button" className="btn btn-ghost chat-annotate-delete" onClick={onDelete}><Trash2 aria-hidden="true" />{t("Delete")}</button>}
       <button type="button" className="btn" onClick={onClose}>{t("Cancel")}</button>
-      <button type="button" className="btn btn-primary" aria-keyshortcuts={enterSubmitShortcut(settings.enterSends)} onClick={() => { onSave(comment.trim()); }}>{t("Save")}</button>
+      <button type="button" className="btn btn-primary" aria-keyshortcuts={enterSubmitShortcut(settings.enterSends)} onClick={() => { onSave(comment.trim(), kind); }}>{t("Save")}</button>
     </footer>
   </>;
 
@@ -336,13 +369,13 @@ function AnnotationEditor({ title, quote, box, initialComment = "", onSave, onCl
   );
 }
 
-/** The editor for a saved annotation: change its comment or delete it. `anchor` places the popover. */
+/** The editor for a saved annotation: change its kind and comment, or delete it. `anchor` places the popover. */
 export function AnnotationEditDialog({ storeKey, annotation, anchor, onClose, focusAfter }: { storeKey: string; annotation: ChatAnnotation; anchor: DOMRect | null; onClose: () => void; focusAfter?: () => boolean }) {
   const t = useT();
   const box = useMemo(() => (anchor === null ? null : boxOf(anchor)), [anchor]);
-  const save = useCallback((comment: string) => { updateAnnotation(storeKey, annotation.id, { comment }); onClose(); }, [annotation.id, onClose, storeKey]);
+  const save = useCallback((comment: string, kind: ChatAnnotationKind) => { updateAnnotation(storeKey, annotation.id, { comment, kind }); onClose(); }, [annotation.id, onClose, storeKey]);
   const remove = useCallback(() => { removeAnnotation(storeKey, annotation.id); onClose(); }, [annotation.id, onClose, storeKey]);
-  return <AnnotationEditor title={t("Edit comment")} quote={annotation.quote} box={box} initialComment={annotation.comment} onSave={save} onClose={onClose} onDelete={remove} focusAfter={focusAfter} />;
+  return <AnnotationEditor title={t("Edit note")} quote={annotation.quote} box={box} initialComment={annotation.comment} initialKind={annotation.kind} onSave={save} onClose={onClose} onDelete={remove} focusAfter={focusAfter} />;
 }
 
 /** The comments waiting for the next message, as one row of chips over the composer's card: tap one
@@ -422,28 +455,28 @@ export function ChatAnnotationChips({ storeKey, messageBox }: { storeKey: string
   const focusComposer = useCallback(() => focusMessageBox(storeKey), [storeKey]);
 
   if (count === 0) return null;
-  const countLabel = t(count === 1 ? "{n} comment" : "{n} comments", { n: count });
+  const countLabel = t(count === 1 ? "{n} note" : "{n} notes", { n: count });
   const annotation = editing === null ? undefined : annotations.find((item) => item.id === editing.id);
-  return <div className="chat-annotations-bar" ref={row} role="group" aria-label={t("Comments for the next message")}>
+  return <div className="chat-annotations-bar" ref={row} role="group" aria-label={t("Notes for the next message")}>
     <button type="button" className="chat-annotations-chip chat-annotations-count" aria-haspopup="menu" aria-expanded={menu !== null}
       aria-label={countLabel} title={countLabel}
       onClick={(event) => { const anchor = event.currentTarget; setMenu((open) => (open ? null : anchor)); }}>
       <MessageSquareText aria-hidden="true" />{count}
     </button>
     <div ref={setScroller} className="chat-annotations-scroller">
-      {annotations.map((item, index) => <span key={item.id} className="chat-annotations-chip chat-annotation-chip">
+      {annotations.map((item, index) => <span key={item.id} className="chat-annotations-chip chat-annotation-chip" data-kind={item.kind}>
         <button type="button" className="chat-annotation-chip-open" data-annotation={item.id} aria-haspopup="dialog" title={item.comment || item.quote}
           onClick={(event) => { setEditing({ id: item.id, anchor: event.currentTarget.getBoundingClientRect() }); }}>
-          <span className="chat-annotation-chip-text">{annotationChipLabel(item)}</span>
+          <KindIcon kind={item.kind} /><span className="chat-annotation-chip-text">{annotationChipLabel(item)}</span>
         </button>
-        <button type="button" className="chat-annotation-chip-remove" aria-label={t("Remove comment {n}", { n: index + 1 })} title={t("Remove comment {n}", { n: index + 1 })}
+        <button type="button" className="chat-annotation-chip-remove" aria-label={t("Remove note {n}", { n: index + 1 })} title={t("Remove note {n}", { n: index + 1 })}
           onClick={() => { removeAnnotation(storeKey, item.id); setRemovedAt(index); }}><X aria-hidden="true" /></button>
       </span>)}
     </div>
     {menu !== null && <RowMenu anchor={menu} title={countLabel} align="start" onClose={() => { setMenu(null); }}
       items={[{ id: "clear", label: t("Clear all"), icon: Trash2, danger: true, run: () => { setConfirming(true); } }]} />}
     {annotation !== undefined && editing !== null && <AnnotationEditDialog storeKey={storeKey} annotation={annotation} anchor={editing.anchor} onClose={closeEditor} focusAfter={focusComposer} />}
-    {confirming && <ConfirmDialog title={t("Clear all comments?")} body={t("Every comment collected for this chat is removed.")} confirmLabel={t("Clear all")}
+    {confirming && <ConfirmDialog title={t("Clear all notes?")} body={t("Every note collected for this chat is removed.")} confirmLabel={t("Clear all")}
       onConfirm={async () => { clearAnnotations(storeKey); setConfirming(false); }} onClose={() => { setConfirming(false); }} />}
   </div>;
 }

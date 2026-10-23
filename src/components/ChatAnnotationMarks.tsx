@@ -1,6 +1,7 @@
 /**
- * Marks the passages the chat's annotations were made on (lib/chatAnnotations.ts): a solid accent
- * tint while pending, a paler one once sent. Drawn with the CSS Custom Highlight API, so the
+ * Marks the passages the chat's annotations were made on (lib/chatAnnotations.ts): a solid tint
+ * while pending, a paler one once sent, in the accent for a comment, green for an agreement and red
+ * and struck through for a strike. Drawn with the CSS Custom Highlight API, so the
  * message's DOM stays React's and a virtualized row that mounts again is marked again; a browser
  * without it marks nothing. A tap on a pending passage opens its editor. Each passage is found in
  * the message it came from (`data-annotate-ts`) by its saved anchor (lib/chatHighlights.ts), or
@@ -12,23 +13,27 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import "./ChatAnnotationMarks.css";
 
-import { useChatAnnotations, useSentAnnotations, type ChatAnnotation } from "../lib/chatAnnotations.ts";
+import { useChatAnnotations, useSentAnnotations, type ChatAnnotation, type ChatAnnotationKind } from "../lib/chatAnnotations.ts";
 import { NOT_WORDS, passageRange } from "../lib/chatPassage.ts";
 import { AnnotationEditDialog } from "./ChatAnnotations.tsx";
 
 const SUPPORTED = typeof Highlight === "function" && typeof CSS !== "undefined" && "highlights" in CSS;
 
-/** One pair for the document, since `::highlight()` names are global; each chat adds and removes its own ranges. */
-let shared: { pending: Highlight; sent: Highlight } | null = null;
-function highlights(): { pending: Highlight; sent: Highlight } {
+type Marks = Record<ChatAnnotationKind, Highlight>;
+const KINDS: readonly ChatAnnotationKind[] = ["comment", "approve", "reject"];
+
+/** One set for the document, since `::highlight()` names are global (`chat-annotation-pending-approve`); each chat adds and removes its own ranges. */
+let shared: { pending: Marks; sent: Marks } | null = null;
+function highlights(): { pending: Marks; sent: Marks } {
   if (shared === null) {
-    const pending = new Highlight();
-    // a passage annotated again after a send shows as pending
-    pending.priority = 1;
-    const sent = new Highlight();
-    CSS.highlights.set("chat-annotation-pending", pending);
-    CSS.highlights.set("chat-annotation-sent", sent);
-    shared = { pending, sent };
+    const make = (state: "pending" | "sent", priority: number): Marks => Object.fromEntries(KINDS.map((kind) => {
+      const highlight = new Highlight();
+      highlight.priority = priority;
+      CSS.highlights.set(`chat-annotation-${state}-${kind}`, highlight);
+      return [kind, highlight];
+    })) as Marks;
+    // a passage annotated again after a send shows as pending, whatever either's kind
+    shared = { pending: make("pending", 1), sent: make("sent", 0) };
   }
   return shared;
 }
@@ -81,8 +86,10 @@ export function ChatAnnotationMarks({ root, storeKey }: { root: HTMLElement | nu
     let frame = 0;
     const clear = () => {
       for (const range of own) {
-        pendingMarks.delete(range);
-        sentMarks.delete(range);
+        for (const kind of KINDS) {
+          pendingMarks[kind].delete(range);
+          sentMarks[kind].delete(range);
+        }
       }
       own = [];
     };
@@ -93,13 +100,13 @@ export function ChatAnnotationMarks({ root, storeKey }: { root: HTMLElement | nu
       for (const annotation of sent) {
         const range = rangeOf(root, annotation);
         if (range === null) continue;
-        sentMarks.add(range);
+        sentMarks[annotation.kind].add(range);
         own.push(range);
       }
       for (const annotation of pending) {
         const range = rangeOf(root, annotation);
         if (range === null) continue;
-        pendingMarks.add(range);
+        pendingMarks[annotation.kind].add(range);
         own.push(range);
         byRange.set(range, annotation.id);
       }
