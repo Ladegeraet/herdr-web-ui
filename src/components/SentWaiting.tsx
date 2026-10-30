@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useState, useSyncExternalStore } from "react";
 import { Clock } from "lucide-react";
 
+import { parseAnnotationsBlock } from "../lib/chatAnnotations.ts";
 import { useT } from "../lib/i18n.ts";
 import { currentWaitingSends, forgetMachineWaitingSends, subscribeWaitingSends, WAITING_HINT_MS, waitingKey, type WaitingSend } from "../lib/sentWaiting.ts";
 
@@ -39,10 +40,17 @@ export function SentWaitingList({ sends }: { sends: readonly WaitingSend[] }) {
   // no live region of its own: the chat footer has one, and the user's own words need no announcing
   return <div className="chat-sent-waiting-list">
     {sends.map((send) => {
-      const chars = Array.from(send.text);
+      // the notes block sent after the words shows as their count, as the turn's cards will (text matches whole)
+      const feedback = parseAnnotationsBlock(send.text);
+      const typed = feedback?.text ?? send.text;
+      const notes = feedback?.annotations.length ?? 0;
+      const chars = Array.from(typed);
       return <div key={send.id} className="chat-turn chat-turn-user chat-turn-waiting">
         <div className="chat-user-row">
-          <div className="chat-bubble"><div className="chat-bubble-body">{chars.length > 160 ? `${chars.slice(0, 160).join("")}…` : send.text}</div></div>
+          <div className="chat-bubble">
+            {typed !== "" && <div className="chat-bubble-body">{chars.length > 160 ? `${chars.slice(0, 160).join("")}…` : typed}</div>}
+            {notes > 0 && <div className="chat-sent-notes">{t(notes === 1 ? "{n} note" : "{n} notes", { n: notes })}</div>}
+          </div>
           {now - send.at >= WAITING_HINT_MS && <div className="chat-turn-meta">
             <span className="chat-sent-late" role="img" aria-label={late} title={late}><Clock aria-hidden="true" /></span>
           </div>}

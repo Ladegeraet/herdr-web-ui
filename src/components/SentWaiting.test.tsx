@@ -3,12 +3,14 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 
+import { composeWithAnnotations, type ChatAnnotation } from "../lib/chatAnnotations.ts";
 import { SettingsProvider } from "../lib/settings.ts";
 import { forgetWaitingSends, rememberWaitingSend, WAITING_HINT_MS, waitingKey, type WaitingSend } from "../lib/sentWaiting.ts";
 import { SentWaitingList, useWaitingSends } from "./SentWaiting.tsx";
 
 const at = Date.parse("2026-10-29T03:00:00Z");
 const send: WaitingSend = { id: 1, pane: "local:p1", text: "fix the flaky test", at, after: null };
+const note: ChatAnnotation = { id: "a", source: "agent", kind: "comment", quote: "the retry loop", comment: "Why three tries?", context: "agent message, 03:00", createdAt: at };
 
 function withEnglish<T>(run: () => T): T {
   const saved = Object.getOwnPropertyDescriptor(navigator, "languages");
@@ -40,6 +42,13 @@ describe("SentWaitingList", () => {
     const markup = render(at + WAITING_HINT_MS);
     expect(markup).toContain("chat-sent-late");
     expect(textWithoutTags(markup)).toBe(send.text);
+  });
+
+  test("shows a send's notes as their count, not the block the agent reads", () => {
+    const message = composeWithAnnotations("fix the flaky test", [note]);
+    const markup = withEnglish(() => renderToStaticMarkup(createElement(SettingsProvider, { children: createElement(SentWaitingList, { sends: [{ ...send, text: message }] }) })));
+    expect(textWithoutTags(markup)).toBe("fix the flaky test1 note");
+    expect(markup).not.toContain("Message Feedback");
   });
 
   test("is no live region of its own: the chat footer's one status region stays the only one", () => {
