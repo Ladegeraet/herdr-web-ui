@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useState, useSyncExternalStore } from "react";
 import { Clock } from "lucide-react";
 
+import { parseAnnotationsBlock } from "../lib/chatAnnotations.ts";
 import { useT } from "../lib/i18n.ts";
 import { shouldFoldUserMessage } from "../lib/userMessageFold.ts";
 import { currentWaitingSends, forgetMachineWaitingSends, subscribeWaitingSends, WAITING_HINT_MS, waitingKey, type WaitingSend } from "../lib/sentWaiting.ts";
@@ -40,12 +41,19 @@ export function SentWaitingList({ sends }: { sends: readonly WaitingSend[] }) {
   // no live region of its own: the chat footer has one, and the user's own words need no announcing
   return <div className="chat-sent-waiting-list">
     {sends.map((send) => {
-      // capped at the lines its turn's card shows (UserMessage, ChatView.tsx), so the turn takes its
+      // the notes block sent after the words shows as their count, as the turn's cards will (text matches whole);
+      // the words are capped at the lines its turn's card shows (UserMessage, ChatView.tsx), so the turn takes its
       // place at about its height; the card's fade and Show full message come with the turn
-      const capped = shouldFoldUserMessage(send.text);
+      const feedback = parseAnnotationsBlock(send.text);
+      const typed = feedback?.text ?? send.text;
+      const notes = feedback?.annotations.length ?? 0;
+      const capped = shouldFoldUserMessage(typed);
       return <div key={send.id} className="chat-turn chat-turn-user chat-turn-waiting">
         <div className="chat-user-row">
-          <div className={capped ? "chat-bubble is-capped" : "chat-bubble"}><div className="chat-bubble-body">{send.text}</div></div>
+          <div className={capped ? "chat-bubble is-capped" : "chat-bubble"}>
+            {typed !== "" && <div className="chat-bubble-body">{typed}</div>}
+            {notes > 0 && <div className="chat-sent-notes">{t(notes === 1 ? "{n} note" : "{n} notes", { n: notes })}</div>}
+          </div>
           {now - send.at >= WAITING_HINT_MS && <div className="chat-turn-meta">
             <span className="chat-sent-late" role="img" aria-label={late} title={late}><Clock aria-hidden="true" /></span>
           </div>}

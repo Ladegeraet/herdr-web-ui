@@ -339,3 +339,9 @@ button.chat-annotations-chip {
 .chat-annotate-action .kbd {
   margin-left: var(--space-1);
 }
+
+/* the notes a send carries, while its turn has not come back yet (SentWaiting.tsx): their count */
+.chat-sent-notes {
+  margin-top: var(--space-1);
+  font-size: var(--chat-fs-xs);
+}
