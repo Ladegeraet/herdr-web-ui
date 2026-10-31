@@ -287,6 +287,13 @@ export function Composer({
   // drawn calm while it is the note shown
   const [calmNote, setCalmNote] = useState<string | null>(null);
   const tell = useCallback((text: string) => { setNote(text); setCalmNote(text); }, []);
+  // it tells of the send that emptied the box: text in the box again (typed, or a queued message put
+  // back by Edit) is a new message, and the line would read as if that had gone
+  const emptied = useRef(text === "");
+  useEffect(() => {
+    if (emptied.current && text !== "") setNote((current) => (current !== null && current === calmNote ? null : current));
+    emptied.current = text === "";
+  }, [calmNote, text]);
   const quickOpen = settings.showQuickReplies;
   const quickReplies = quickReplyButtons(settings);
   const [boxWidth, setBoxWidth] = useState(0);
