@@ -118,8 +118,6 @@ import { TurnTime } from "./TurnTime.tsx";
 import { currentLocale, useT } from "../lib/i18n.ts";
 import { offersRetry, userFailure, type UserFailure } from "../lib/userError.ts";
 import { useAnnouncedText } from "../lib/useAnnouncedText.ts";
-import { replyCommentsKey } from "../lib/replyComments.ts";
-import { ReplyCommentAction } from "./ReplyComments.tsx";
 import { ConversationSearch, type RevealResult } from "./ConversationSearch.tsx";
 import { useResourceUrl } from "../lib/useResourceUrl.ts";
 
@@ -3024,8 +3022,7 @@ export const ChatView = memo(function ChatView({ paneId, presentationKey, finish
     </div>}
     {state.source === "conversation" && <ChatMinimap turns={minimap} rowKeys={rowKeys} scroller={scroller} onJump={jumpToTurn} onWheel={minimapWheel} />}
     {jump}
-    {/* only a pane this device may send to takes quotes and comments: they go with its next message */}
-    {state.source === "conversation" && interactive && !ended && <ReplyCommentAction scroller={scroller} storageKey={replyCommentsKey(paneStorageId(machineId, paneId))} paneKey={quotable ? paneStorageId(machineId, paneId) : null} />}
+    {/* upstream's reply comment and quote pill (#511, #2574) is not offered: the chat's own annotations (ChatAnnotations.tsx) take a selection */}
     </div>
     </div>
   {/* The prompt card is not part of the transcript: it is drawn on the composer's column, over the
