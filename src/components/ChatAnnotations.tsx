@@ -51,21 +51,72 @@ interface Selected {
 const elementOf = (node: Node): Element | null => (node instanceof Element ? node : node.parentElement);
 const boxOf = (rect: DOMRect): Box => ({ top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right });
 
+/** Drawn on the page: a selection's text leaves out what is not (`display: none`, hidden). */
+function drawn(element: Element | null): boolean {
+  return element !== null && element.getClientRects().length > 0 && getComputedStyle(element).visibility === "visible";
+}
+
+/** `user-select: none` is not inherited as a computed value (a label inside a button reads `auto`): each ancestor is asked. */
+function selectable(element: Element | null): boolean {
+  for (let at = element; at !== null; at = at.parentElement) if (getComputedStyle(at).userSelect === "none") return false;
+  return true;
+}
+
+/**
+ * A drag past a message's last word that ends on its copy row or time (as upstream's `wordsEnd` in
+ * ReplyComments.tsx, #2577): the range up to the row, and the row's text the selection carries, to take
+ * off the quote's end. Undefined: the range does not reach into the row. Null: it starts in the row, or
+ * runs on past it into more of the message.
+ */
+function pastCopyRow(range: Range, message: HTMLElement): { range: Range; cut: string[] } | null | undefined {
+  const meta = [...message.querySelectorAll(".chat-turn-meta")].find((row) => row.closest("[data-annotate]") === message);
+  if (meta === undefined || !range.intersectsNode(meta)) return undefined;
+  if (meta.contains(range.startContainer)) return null;
+  if (!meta.contains(range.endContainer)) {
+    const after = document.createRange();
+    after.setStartAfter(meta);
+    after.setEnd(range.endContainer, range.endOffset);
+    if (after.toString().trim() !== "") return null;
+  }
+  const cut: string[] = [];
+  const walker = document.createTreeWalker(meta, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode() as Text | null; node !== null && range.intersectsNode(node); node = walker.nextNode() as Text | null) {
+    const taken = node.data.slice(0, node === range.endContainer ? range.endOffset : node.length);
+    // what the selection's text carries: selectable and drawn (a mouse's copy row hides its MD and TXT)
+    if (taken.trim() !== "" && selectable(node.parentElement) && drawn(node.parentElement)) cut.push(taken);
+  }
+  const trimmed = range.cloneRange();
+  trimmed.setEndBefore(meta);
+  return { range: trimmed, cut };
+}
+
 /** The selection when it lies inside one message of `root`, else null. */
 function readSelection(root: HTMLElement): Selected | null {
   const selection = document.getSelection();
   if (!selection || selection.isCollapsed || selection.rangeCount === 0) return null;
-  const range = selection.getRangeAt(0);
-  const start = elementOf(range.startContainer)?.closest<HTMLElement>("[data-annotate]");
-  const end = elementOf(range.endContainer)?.closest<HTMLElement>("[data-annotate]");
+  const selected = selection.getRangeAt(0);
+  const start = elementOf(selected.startContainer)?.closest<HTMLElement>("[data-annotate]");
+  const end = elementOf(selected.endContainer)?.closest<HTMLElement>("[data-annotate]");
   if (!start || start !== end || !root.contains(start)) return null;
   // the comments a sent message carries (ChatFeedbackCards) are not its words
-  if (elementOf(range.startContainer)?.closest(".chat-feedback") || elementOf(range.endContainer)?.closest(".chat-feedback")) return null;
+  if (elementOf(selected.startContainer)?.closest(".chat-feedback") || elementOf(selected.endContainer)?.closest(".chat-feedback")) return null;
+  // the copy row and time a drag past the last word takes are not the message's words either
+  const past = pastCopyRow(selected, start);
+  if (past === null) return null;
+  const range = past?.range ?? selected;
+  if (range.collapsed) return null;
   // a field's text, a button's name: not the message's words
   if (elementOf(range.commonAncestorContainer)?.closest("input, textarea, button, [contenteditable]")) return null;
   const source = annotationSource(start.dataset.annotate);
+  // the row's text comes last in the selection's, in order: taken off its end, and nothing once one is not there
+  let text = selection.toString();
+  for (const piece of [...(past?.cut ?? [])].reverse()) {
+    text = text.trimEnd();
+    if (!text.endsWith(piece.trim())) break;
+    text = text.slice(0, text.length - piece.trim().length);
+  }
   // a drag from mid-line takes the space before a word: the quote starts at the word
-  const quote = quotedText(selection.toString().trim());
+  const quote = quotedText(text.trim());
   if (source === null || quote === null) return null;
   const lines = range.getClientRects();
   const last = lines[lines.length - 1] ?? range.getBoundingClientRect();
