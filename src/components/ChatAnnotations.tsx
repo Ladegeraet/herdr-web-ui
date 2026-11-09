@@ -25,7 +25,7 @@ import { selectionAnchor } from "../lib/chatPassage.ts";
 import { annotationContext, annotationSource, boxesMeet, popoverPlace, triggerPlace, type Box } from "../lib/chatSelection.ts";
 import { enterSubmits, enterSubmitShortcut } from "../lib/enterSubmits.ts";
 import { useT } from "../lib/i18n.ts";
-import { useSettings } from "../lib/settings.ts";
+import { enterSendsOn, useSettings } from "../lib/settings.ts";
 import { SHEET_QUERY, useSheetSwipe } from "../lib/sheets.ts";
 import { useSheetHistory } from "../lib/sheetHistory.ts";
 import { quotedText } from "../lib/terminalQuote.ts";
@@ -312,6 +312,8 @@ function AnnotationEditor({ title, quote, box, initialComment = "", initialKind 
   // selection would sit behind the on-screen keyboard, which iOS leaves out of innerHeight
   const coarse = useMediaQuery("(pointer: coarse)");
   const modal = sheet || coarse || box === null;
+  // the composer's own reading of "Enter sends": unset, a touch screen's Return is a new line
+  const enterSends = enterSendsOn(settings, coarse);
   const field = useRef<HTMLTextAreaElement>(null);
   // only the modal traps Tab. Its focus goes on as the popover's does (`focusAfter`), and never
   // back to the composer on touch, which would raise the keyboard
@@ -388,7 +390,7 @@ function AnnotationEditor({ title, quote, box, initialComment = "", initialKind 
 
   // Enter or Cmd/Ctrl+Enter saves, as the composer's sends: by the "Enter sends" setting
   const onFieldKey = (event: ReactKeyboardEvent<HTMLTextAreaElement>): void => {
-    if (!enterSubmits(event.nativeEvent, settings.enterSends)) return;
+    if (!enterSubmits(event.nativeEvent, enterSends)) return;
     event.preventDefault();
     onSave(comment.trim(), kind);
   };
@@ -404,7 +406,7 @@ function AnnotationEditor({ title, quote, box, initialComment = "", initialKind 
       <blockquote className="chat-annotate-quote" data-kind={kind}>{quote}</blockquote>
       <label className="visually-hidden" htmlFor={`${id}-comment`}>{t("Your comment")}</label>
       <textarea ref={field} id={`${id}-comment`} className="input chat-annotate-field" rows={3} value={comment}
-        aria-keyshortcuts={enterSubmitShortcut(settings.enterSends)}
+        aria-keyshortcuts={enterSubmitShortcut(enterSends)}
         placeholder={kind === "comment" ? t("What should the agent know about this?") : t("Add a comment (optional)")}
         spellCheck autoCapitalize="sentences" autoCorrect="on"
         onChange={(event) => { setComment(event.target.value); }} onKeyDown={onFieldKey} />
@@ -412,7 +414,7 @@ function AnnotationEditor({ title, quote, box, initialComment = "", initialKind 
     <footer className="modal-footer">
       {onDelete && <button type="button" className="btn btn-ghost chat-annotate-delete" onClick={onDelete}><Trash2 aria-hidden="true" />{t("Delete")}</button>}
       <button type="button" className="btn" onClick={onClose}>{t("Cancel")}</button>
-      <button type="button" className="btn btn-primary" aria-keyshortcuts={enterSubmitShortcut(settings.enterSends)} onClick={() => { onSave(comment.trim(), kind); }}>{t("Save")}</button>
+      <button type="button" className="btn btn-primary" aria-keyshortcuts={enterSubmitShortcut(enterSends)} onClick={() => { onSave(comment.trim(), kind); }}>{t("Save")}</button>
     </footer>
   </>;
 
