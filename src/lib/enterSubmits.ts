@@ -1,8 +1,8 @@
 /**
  * Whether a key in a message field sends it (the composer) or saves it (an annotation's comment),
  * by the "Enter sends" setting: on, Enter does and Shift+Enter is a new line; off, Cmd/Ctrl+Enter
- * does and Enter is a new line. A touch screen follows the same setting (Settings words it "Return
- * inserts a new line" there). An IME keeps its keys: WebKit can send the committing Enter after
+ * does and Enter is a new line. Callers pass the setting as `enterSendsOn` reads it: unset, a touch
+ * screen's Return is a new line. An IME keeps its keys: WebKit can send the committing Enter after
  * compositionend, as key code 229.
  */
 export interface EnterKey {
