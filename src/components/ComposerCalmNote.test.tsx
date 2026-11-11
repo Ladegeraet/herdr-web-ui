@@ -69,3 +69,20 @@ it("drops the held-back line once the box holds text again", async () => {
   await act(async () => { composerDrafts.set(draftKey, "Queued while it works"); });
   expect(noteText()).toBeNull();
 });
+
+// Alt+Enter holds the message in the queued list even with the agent idle: the notes stay, as for any queued send
+it("keeps the notes out of a message held with Alt+Enter", async () => {
+  addAnnotation(pane, { source: "agent", kind: "approve", quote: "Reset it in didUpdateWidget", comment: "" });
+  const calls: unknown[][] = [];
+  const props: ComposerProps = { paneId: pane, agent: "claude", agentStatus: "idle", connected: true, autoFocus: false, onSend: (...args) => { calls.push(args); return true; }, onAbort() {}, onUploadImage: async () => "" };
+  composerDrafts.set(draftKey, "Hold this for later");
+  await act(async () => { renderer = create(<Composer {...props} />); });
+  const box = renderer!.root.findAll((node) => node.type === "textarea" && node.props.onKeyDown !== undefined)[0]!;
+  await act(async () => {
+    box.props.onKeyDown({ key: "Enter", shiftKey: false, altKey: true, metaKey: false, ctrlKey: false, repeat: false, nativeEvent: { isComposing: false, keyCode: 13 }, preventDefault() {} });
+  });
+  expect(calls).toHaveLength(1);
+  expect(calls[0]![0]).toBe("Hold this for later");
+  expect(calls[0]![5]).toBe(true);
+  expect(noteText()).toContain("Sent without your notes");
+});
