@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { enterSubmits, enterSubmitShortcut, type EnterKey } from "./enterSubmits.ts";
 
-const key = (over: Partial<EnterKey> = {}): EnterKey => ({ key: "Enter", shiftKey: false, metaKey: false, ctrlKey: false, isComposing: false, keyCode: 13, ...over });
+const key = (over: Partial<EnterKey> = {}): EnterKey => ({ key: "Enter", shiftKey: false, metaKey: false, ctrlKey: false, altKey: false, isComposing: false, keyCode: 13, ...over });
 
 describe("enterSubmits", () => {
   test("with Enter sends on, Enter submits and Shift+Enter is a new line", () => {
@@ -17,6 +17,11 @@ describe("enterSubmits", () => {
     expect(enterSubmits(key({ metaKey: true }), false)).toBe(true);
     expect(enterSubmits(key({ ctrlKey: true }), false)).toBe(true);
     expect(enterSubmits(key({ ctrlKey: true, shiftKey: true }), false)).toBe(false);
+  });
+
+  test("with Enter sends off, AltGr+Enter (Ctrl+Alt) and Cmd+Option+Enter do not submit", () => {
+    expect(enterSubmits(key({ ctrlKey: true, altKey: true }), false)).toBe(false);
+    expect(enterSubmits(key({ metaKey: true, altKey: true }), false)).toBe(false);
   });
 
   test("an IME's Enter never submits, nor does another key", () => {
