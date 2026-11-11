@@ -90,7 +90,7 @@
   position: fixed;
   z-index: var(--z-popover);
   width: min(380px, calc(100vw - var(--space-4)));
-  max-height: calc(100vh - var(--space-4));
+  max-height: calc(var(--app-height, 100dvh) - var(--space-4));
   padding: 0;
 }
 
