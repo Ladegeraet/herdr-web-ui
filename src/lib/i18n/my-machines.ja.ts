@@ -19,7 +19,6 @@ export const MY_MACHINES_JA: Record<string, string> = {
   "Try to reach {name} again": "{name} への接続を再試行",
   "Details of {name}": "{name} の詳細",
   "Ovis does not start or restart the engine: start herdr or herdr-core on the machine.": "Ovis はエンジンの起動も再起動も行いません。マシンで herdr または herdr-core を起動してください。",
-  "Kind": "種類",
   "PC": "PC",
   "Machine: a server or VM with no screen": "マシン: 画面のないサーバーまたは VM",
   "Came in": "参加方法",

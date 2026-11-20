@@ -19,7 +19,6 @@ export const MY_MACHINES_ZH: Record<string, string> = {
   "Try to reach {name} again": "再次尝试连接 {name}",
   "Details of {name}": "{name} 的详情",
   "Ovis does not start or restart the engine: start herdr or herdr-core on the machine.": "Ovis 不会启动或重启引擎：请在机器上启动 herdr 或 herdr-core。",
-  "Kind": "类型",
   "PC": "PC",
   "Machine: a server or VM with no screen": "机器：没有屏幕的服务器或 VM",
   "Came in": "加入方式",
